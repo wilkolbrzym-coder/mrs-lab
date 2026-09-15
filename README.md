@@ -11,6 +11,8 @@ It is a tool for testing hypotheses, not a theory. Every claim in the property
 tables is backed by a test in this repository, and every table is reproducible
 byte for byte.
 
+**Repository:** <https://github.com/wilkolbrzym-coder/mrs-lab>
+
 **Status:** 0.1.0. The engine decides questions P2 and P4 below for every
 signature with `p+q+r <= 4` in about 0.4 s. P1 is partially decided, P3 is
 specified but not implemented.
