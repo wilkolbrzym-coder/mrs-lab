@@ -1,6 +1,6 @@
 //! MRS-LAB :: form module
 //!
-//! Dwie reprezentacje tej samej formy kwadratowej g: X × X → K:
+//! Two representations of the same quadratic form g: X × X → K:
 //!
 //!   * `DiagonalForm` — the MRS-native representation: the form is given
 //!     by the signature, so `g(v,v) = Σ s_i v_i²`. Cost O(n); the inverse
@@ -25,8 +25,8 @@ pub const Class = enum {
     temporal,
     /// Self-orthogonal, g(v,v) = 0 (in 3+1: lightlike).
     null_like,
-    /// Opposite to the cone (in 3+1: spatial). Elements with nonzero norm here
-    /// normie w tej klasie to kandydaci na tachiony.
+    /// Opposite to the cone (in 3+1: spatial). Elements with nonzero norm in
+    /// this class are the tachyon candidates.
     spatial,
 
     pub fn isCausalLike(self: Class) bool {
@@ -35,9 +35,9 @@ pub const Class = enum {
 
     pub fn label(self: Class) []const u8 {
         return switch (self) {
-            .temporal => "czasowy",
+            .temporal => "temporal (timelike)",
             .null_like => "null (lightlike)",
-            .spatial => "przestrzenny (tachionowy)",
+            .spatial => "spatial (tachyonic)",
         };
     }
 };
@@ -56,6 +56,11 @@ pub const DiagonalForm = struct {
     /// their exact previous behaviour.
     signs: [sig.MAX_DIM]f64 = [_]f64{0} ** sig.MAX_DIM,
     use_signs: bool = false,
+    /// Dimension and convention copied BY VALUE. Together with `signs` this
+    /// makes the form self-contained, so a form built by `initOwned` never
+    /// dereferences the caller's `roles` slice.
+    dim: u5 = 0,
+    time_sign: TimeSign = .mostly_minus,
 
     /// Preferred constructor: precomputes the sign vector once, so the hot loop
     /// is branch-free and reads contiguous memory.
@@ -67,12 +72,39 @@ pub const DiagonalForm = struct {
     /// a test with n > MAX_DIM.
     pub fn init(s: Signature) DiagonalForm {
         if (s.n() > sig.MAX_DIM) return .{ .signature = s, .use_signs = false };
-        var f = DiagonalForm{ .signature = s, .use_signs = true };
+        var f = DiagonalForm{
+            .signature = s,
+            .use_signs = true,
+            .dim = @intCast(s.n()),
+            .time_sign = s.time_sign,
+        };
+        for (0..s.n()) |i| f.signs[i] = s.signAt(i);
+        return f;
+    }
+
+    /// Constructor for callers that must not keep a reference to the signature
+    /// they were given — typically a signature built on a temporary buffer.
+    ///
+    /// It copies everything it needs (signs, dimension, convention) and stores
+    /// an EMPTY role slice, so the resulting form is self-contained and safe to
+    /// return from the frame that built it. This is the type-level fix for a
+    /// real hazard: `Signature` borrows a `[]const Role` slice, so a helper that
+    /// built an `Order` from a local `SigBuf` and returned it compiled fine and
+    /// then failed at runtime with a corrupt-value switch.
+    pub fn initOwned(s: Signature) error{DimensionTooLarge}!DiagonalForm {
+        if (s.n() > sig.MAX_DIM) return error.DimensionTooLarge;
+        var f = DiagonalForm{
+            .signature = .{ .roles = &.{}, .time_sign = s.time_sign },
+            .use_signs = true,
+            .dim = @intCast(s.n()),
+            .time_sign = s.time_sign,
+        };
         for (0..s.n()) |i| f.signs[i] = s.signAt(i);
         return f;
     }
 
     pub fn n(self: DiagonalForm) usize {
+        if (self.use_signs) return self.dim;
         return self.signature.n();
     }
 
@@ -108,7 +140,7 @@ pub const DiagonalForm = struct {
     pub fn classifyTol(self: DiagonalForm, v: []const f64, tol: f64) Class {
         const g = self.eval(v);
         if (@abs(g) <= tol) return .null_like;
-        const ts = self.signature.time_sign.f();
+        const ts = if (self.use_signs) self.time_sign.f() else self.signature.time_sign.f();
         return if (g * ts > 0) .temporal else .spatial;
     }
 
@@ -130,7 +162,7 @@ pub const DiagonalForm = struct {
         }
     }
 
-    /// Operacje zmiennoprzecinkowe potrzebne do jednej ewaluacji formy.
+    /// Floating point operations needed for one evaluation of the form.
     pub fn mulCountEval(self: DiagonalForm) usize {
         return self.n();
     }
@@ -147,7 +179,7 @@ pub const DiagonalForm = struct {
 
 pub const DenseForm = struct {
     dim: usize,
-    /// Wiersz po wierszu (row-major), dim × dim.
+    /// Row by row (row-major), dim × dim.
     g: []const f64,
 
     /// Builds the diagonal matrix corresponding to the signature. This is the same
@@ -257,9 +289,9 @@ test "both representations give the identical form" {
     defer dense.deinit(alloc);
 
     const probes = [_][4]f64{
-        .{ 1, 0, 0, 0 }, // czasowy
-        .{ 0, 1, 0, 0 }, // przestrzenny
-        .{ 1, 1, 0, 0 }, // zerowy
+        .{ 1, 0, 0, 0 }, // temporal
+        .{ 0, 1, 0, 0 }, // spatial
+        .{ 1, 1, 0, 0 }, // null
         .{ 0.3, -1.7, 2.2, 0.5 },
         .{ 1e3, -2e3, 3e3, -4e3 },
     };
@@ -349,4 +381,36 @@ test "init above MAX_DIM falls back instead of overflowing" {
     var v8: [sig.MAX_DIM]f64 = undefined;
     for (&v8, 0..) |*x, i| x.* = @as(f64, @floatFromInt(i)) - 3.0;
     try std.testing.expectApproxEqAbs(g8.eval(&v8), f8.eval(&v8), 0.0);
+}
+
+test "initOwned is self-contained: no reference to the caller's roles" {
+    const makeFormInLocalFrame = struct {
+        fn call() !DiagonalForm {
+            // `roles` is a local array in THIS frame. With the borrowing
+            // constructor the returned form would point at dead stack.
+            var roles = [_]sig.Role{ .temporal, .spatial, .spatial, .spatial };
+            const s = Signature{ .roles = &roles, .time_sign = .mostly_minus };
+            return DiagonalForm.initOwned(s);
+        }
+    }.call;
+
+    const f = try makeFormInLocalFrame();
+    try std.testing.expectEqual(@as(usize, 4), f.n());
+    const v = [_]f64{ 2, 1, 0, 0 };
+    try std.testing.expectApproxEqAbs(@as(f64, 3.0), f.eval(&v), 1e-12);
+    try std.testing.expectEqual(Class.temporal, f.classify(&v));
+    try std.testing.expectEqual(Class.spatial, f.classify(&[_]f64{ 0, 2, 0, 0 }));
+    var out: [4]f64 = undefined;
+    const c = [_]f64{ 2, 4, 6, 8 };
+    try f.raiseIndex(&c, &out);
+    try std.testing.expectApproxEqAbs(@as(f64, 2.0), out[0], 1e-12);
+    try std.testing.expectApproxEqAbs(@as(f64, -4.0), out[1], 1e-12);
+
+    // above MAX_DIM it must refuse rather than fall back to a dangling slice
+    var big: [sig.MAX_DIM + 1]sig.Role = undefined;
+    for (&big) |*r| r.* = .spatial;
+    try std.testing.expectError(
+        error.DimensionTooLarge,
+        DiagonalForm.initOwned(Signature{ .roles = &big }),
+    );
 }
