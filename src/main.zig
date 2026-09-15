@@ -20,15 +20,17 @@ const t1 = @import("bench/t1_form.zig");
 const t2 = @import("bench/t2_boost.zig");
 const t3 = @import("bench/t3_clifford.zig");
 const t4 = @import("bench/t4_derivative.zig");
+const t5 = @import("bench/t5_contract.zig");
 const explore_report = @import("explore/report.zig");
 
 const sig = mrs.signature;
 const form = mrs.form;
+const contract = mrs.contract;
 const Z = mrs.split_complex.Z;
 const causal = mrs.causal;
 const cl = mrs.clifford;
 
-const VERSION = "MRS-LAB 0.1.2";
+const VERSION = "MRS-LAB 0.1.3";
 
 // ---------------------------------------------------------------------------
 // Input
@@ -329,6 +331,38 @@ fn demo(w: *Io.Writer) !void {
         try w.print(" |\n\nExpected: cos θ · e1 + sin θ · e2 at θ = {d:.3}, i.e. " ++
             "coefficients ({d:.4}, {d:.4}).\n\n", .{ theta, @cos(theta), @sin(theta) });
     }
+
+    // --- error contracts ----------------------------------------------------
+    try w.writeAll("---\n\n## Error contracts: the tolerance travels with the number\n\n");
+    {
+        const f = form.DiagonalForm.init(sig.minkowski_3_1);
+        const v = [_]f64{ 1.25, -2.5, 0.0, 3.75 };
+        const plain = f.eval(&v);
+        const bounded = contract.evalForm(f, &v);
+        try w.print("g(v,v) for v = (1.25, −2.5, 0, 3.75):\n\n", .{});
+        try w.print("    plain        : {e:.17}\n", .{plain});
+        try w.print("    with a radius: {e:.17} ± {e:.2}\n", .{ bounded.value, bounded.radius });
+        try w.print("    the radius covers the plain value: {}\n\n", .{bounded.containsValue(plain)});
+        try w.writeAll("The zero test is then a consequence, not an argument:\n\n");
+        const nullish = [_]f64{ 1.0, 1.0, 0.0, 0.0 };
+        const g_null = contract.evalForm(f, &nullish);
+        try w.print("    v = (1, 1, 0, 0)     g = {e:.3} ± {e:.2}  →  {s}\n", .{
+            g_null.value, g_null.radius, if (g_null.couldBeZero()) "null (the radius covers zero)" else "a decided sign",
+        });
+        const small = contract.Bounded.exact(1e-300);
+        try w.print("    1e-300 known exactly   ± 0                    →  {s}\n\n", .{
+            if (small.couldBeZero()) "null" else "NOT null: a small number is not a zero",
+        });
+    }
+    try w.writeAll("What a radius is worth depends on the representation, and that is\n" ++
+        "measurable. Over 100 000 boosts with mixed signs, the rules above give:\n\n" ++
+        "    additive chart (rapidity)          radius ≈ 1e-12\n" ++
+        "    split-complex product              radius ≈ 5e17\n" ++
+        "    matrix product (det)               radius ≈ 5e18\n\n" ++
+        "Both are correct worst-case bounds. Only the first is useful, because an\n" ++
+        "absolute-value rule cannot see the cancellation that the additive\n" ++
+        "coordinate makes explicit. The test `the additive chart keeps a useful\n" ++
+        "bound where the multiplicative one does not` guards both claims.\n\n");
 
     try w.writeAll("---\n\nWhat changed, and what is still open: `CHANGELOG.md`.\n");
     try w.writeAll("Measurement results: `results/RESULTS.md`. Property table: `results/EXPLORE.md`.\n");
@@ -750,6 +784,61 @@ fn verify(w: *Io.Writer) !usize {
         );
     }
 
+    // A15: the propagated radius contains the exact value
+    {
+        var prng = std.Random.DefaultPrng.init(20240915);
+        const cases = [_]sig.Signature{
+            sig.minkowski_3_1,
+            sig.minkowski_1_1,
+            sig.euclidean_4,
+            sig.degenerate_2_1_1,
+        };
+        var checked: usize = 0;
+        var worst: []const u8 = "";
+        for (cases) |cs| {
+            const f = form.DiagonalForm.init(cs);
+            var v: [sig.MAX_DIM]f64 = undefined;
+            var ok = true;
+            for (0..500) |_| {
+                var exact: f128 = 0;
+                for (0..cs.n()) |i| {
+                    v[i] = prng.random().float(f64) * 20.0 - 10.0;
+                    const s_i: f128 = @floatCast(cs.signAt(i));
+                    exact += s_i * @as(f128, v[i]) * @as(f128, v[i]);
+                }
+                const g = contract.evalForm(f, v[0..cs.n()]);
+                checked += 1;
+                if (!g.containsValue(@floatCast(exact))) {
+                    ok = false;
+                    worst = "the radius did not cover the exact value";
+                }
+            }
+            if (!ok) {
+                try c.check("A15 propagated radius contains the exact form value", false, worst);
+                try w.print("\n---\n\n**Result:** {d} checks passed, {d} failed.\n", .{ c.passed, c.failed });
+                return c.failed;
+            }
+        }
+        try c.check(
+            "A15 propagated radius contains the exact form value",
+            checked > 0,
+            "2000 evaluations, 4 signatures, checked against f128",
+        );
+    }
+
+    // A16: the zero test is derived from the radius, and does not fire on a
+    // small value that is known exactly
+    {
+        const small = contract.Bounded.exact(1e-300);
+        const covered = contract.Bounded.fromError(1e-17, 1e-16);
+        const ok = !small.couldBeZero() and covered.couldBeZero();
+        try c.check(
+            "A16 zero is decided by the radius, not by the magnitude",
+            ok,
+            "1e-300 known exactly is not zero; 1e-17 ± 1e-16 is",
+        );
+    }
+
     try w.print("\n---\n\n**Result:** {d} checks passed, {d} failed.\n", .{ c.passed, c.failed });
     return c.failed;
 }
@@ -780,6 +869,7 @@ fn report(
     try t2.run(io, alloc, w, quick);
     try t3.run(io, alloc, w, quick);
     try t4.run(io, alloc, w, quick);
+    try t5.run(io, alloc, w, quick);
 
     try w.writeAll("## Summary\n\n");
     try w.writeAll(
@@ -790,11 +880,15 @@ fn report(
         \\| T2 | composing boosts | 2.5-2.8x over a matrix chain, but **1.000x** against a classical rapidity variable, i.e. against the same code |
         \\| T3 | sparse multivectors | exponential gain over a dense baseline; against a sparse-input baseline the difference is exactly the cost of discovering sparsity |
         \\| T4 | derivative of the dispersion relation | real gain on both criteria: about 1.5x faster and several orders more accurate |
+        \\| T5 | price of an error radius | not a speed claim but a price list: 1.67x-2.10x where a radius is asked for, and nothing where the contract carries none |
         \\
         \\**Overall.** MRS-LAB creates no new mathematics in T1 or T3 — there the
         \\engineering of representation wins. The advantages that survive every baseline
         \\tried are: the form inverse (T1b), invariant-preserving composition (T2b), and
-        \\exact derivatives (T4). Where there is no advantage, this file says so.
+        \\exact derivatives (T4). Where there is no advantage, this file says so. T5 is
+        \\not in that comparison at all: it prices a capability the earlier versions did
+        \\not have, and the honest reading of T5 is that a propagated bound is worth
+        \\paying for exactly where it stays tight — see the measured table above.
         \\
     );
 }
@@ -820,6 +914,7 @@ test {
     _ = @import("bench/t2_boost.zig");
     _ = @import("bench/t3_clifford.zig");
     _ = @import("bench/t4_derivative.zig");
+    _ = @import("bench/t5_contract.zig");
     _ = @import("explore/signatures.zig");
     _ = @import("explore/exact.zig");
     _ = @import("explore/subalgebra.zig");

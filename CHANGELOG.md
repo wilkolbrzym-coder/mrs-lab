@@ -7,6 +7,97 @@ All notable changes to MRS-LAB are recorded here. The format follows
 Two rules from the README apply to every entry below: a scope limit is a scope
 limit and not a negative result, and "not shown" never means "impossible".
 
+## [0.1.3] — 2026-09-15
+
+The tolerance stops being an argument the caller supplies and becomes part of
+the value. Reproducible: `zig build test` (327 tests, Debug + ReleaseSafe +
+ReleaseFast), `zig build verify` (18 checks), `zig build bench` (T1–T5 into
+`results/RESULTS.md`).
+
+### Added
+
+- **`src/mrs/contract.zig` — the error bound travels with the number.** Until
+  0.1.2 a classification needed a tolerance from outside: `classifyTol(v, tol)`
+  in `form.zig`, `isZeroDivisor(a, tol)` in `split_complex.zig`, a constant in
+  `causal.zig`. The number did not know how well it was known, so "is this
+  vector null?" was answered by a constant chosen somewhere else. `Bounded`
+  carries `value` and `radius` with `|value − exact| <= radius`, and the radius
+  is composed by the same operations that produce the value:
+  - `add`/`sub`: `ra + rb + U·|value|`;
+  - `mul`: `|a|·rb + |b|·ra + ra·rb + U·|value|`;
+  where `U = 2⁻⁵³` is the unit roundoff. Every rule is checked against `f128`
+  arithmetic on grids, not on examples.
+- **The zero test is now derived rather than supplied**: a number is
+  indistinguishable from zero when its own radius covers zero. The other half
+  of that rule matters as much — `1e-300` known exactly is **not** called zero.
+  `verify` A16 guards both directions.
+- **`Contract` — three meanings of "the same result", now distinguishable in
+  the type**: `bit_exact`, `correctly_rounded`, `bounded`. The contract can be
+  a compile-time parameter, and when it carries no radius the layer IS the old
+  code path: `evalFormWith(.bit_exact, …)` returns a plain `f64` from the body
+  `f.eval(v)`. Those contracts therefore cost nothing by construction rather
+  than by an optimiser, which is the death criterion of this design discharged
+  rather than measured. A test asserts the results are bit-identical.
+- `contract.classify` — classification of a vector against the declared
+  convention, with `null_like` returned when the radius covers zero.
+  `classifyTol` stays for callers who want to supply a tolerance; the
+  difference is documented at both.
+- `src/bench/t5_contract.zig` — the price of the radius, measured.
+- `demo` prints the contract section: `g((1,1,0,0)) = 0 ± 5.55e-16` → null by
+  the radius, and `1e-300` → not null. `verify` gains A15 (the propagated
+  radius contains the exact form value, 2000 evaluations over 4 signatures
+  against `f128`) and A16 (the zero test).
+
+### Measured — and this is the interesting part, because it killed the naive version
+
+The bounds were propagated through a 100 000-step chain of boosts with mixed
+signs BEFORE the module was written. The exact answer is known analytically (a
+product of boosts has invariant 1), so no oracle was needed:
+
+| representation | propagated radius | true error | useful? |
+|---|---:|---:|---|
+| additive chart (rapidity) | 1.0e-12 | 2.8e-17 | yes |
+| split-complex product | 5.3e17 | 2.9e-14 | **no** |
+| matrix product (determinant) | 4.8e18 | 3.4e-14 | **no** |
+
+All three are CORRECT worst-case bounds. Only the first is useful. The rules
+take absolute values, and an absolute-value rule cannot see the cancellation
+that the additive coordinate makes explicit, so the bound grows like
+`exp(Σ|θᵢ|)` in the multiplicative representations and like `N·U` in the
+additive one. The conclusion is the thesis of this project reached from the
+error-propagation side instead of from a stopwatch: **a contract is
+dischargeable exactly where the representation is well conditioned.** The test
+`the additive chart keeps a useful bound where the multiplicative one does not`
+guards both halves of that claim.
+
+Two prototype defects were found and fixed before the numbers above were
+believed, and they are recorded because a wrong number is worse than no number:
+the first version indexed the wrong radius array in the matrix chain, which
+produced a spurious exponential blow-up, and the first version normalised the
+random rapidities by dividing by their sum, which is ill-conditioned when that
+sum is near zero and produced a second spurious blow-up.
+
+### Changed
+
+- `results/RESULTS.md` gains T5 and its summary table gains a row. T5 is not a
+  speed comparison and is not presented as one: it prices a capability that
+  earlier versions did not have (1.67×–2.10× where a radius is asked for).
+
+### Known follow-ups
+
+- **The contract is not yet wired into `causal.zig` or `split_complex.zig`.**
+  Their tolerance arguments still exist and still behave as before; the new path
+  is `contract.classify` and `contract.Bounded`. Converting them would change
+  the verdicts those functions return for near-null vectors, which is a
+  behaviour change that belongs in its own release with its own counterexamples.
+- **The approximation half is deliberately absent.** Bounds that compose through
+  a pipeline of approximate summaries (sketches, digests, confidence levels) are
+  a different library with a different open question — how the confidence levels
+  compose — and do not belong in a project about metric signatures.
+- The radius rules are the simple forward ones. Sharper rules exist (running
+  error bounds that keep the correlation between terms, as in compensated
+  summation); the measured table above is what those would have to beat.
+
 ## [0.1.2] — 2026-09-15
 
 P4 reaches dimension 5, by a change of enumeration method rather than by

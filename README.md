@@ -13,54 +13,54 @@ byte for byte.
 
 **Repository:** <https://github.com/wilkolbrzym-coder/mrs-lab>
 
-**Status:** 0.1.2. The engine decides questions P2 and P4 below for every
+**Status:** 0.1.3. The engine decides questions P2 and P4 below for every
 signature with `p+q+r <= 5` — all 55 of them. P1 is partially decided, P3 is
 specified but not implemented.
 
-## What's new in 0.1.2
+## What's new in 0.1.3
 
-**P4 reached dimension 5, which it could not before.** Until 0.1.1 the
-subalgebra question stopped at `p+q+r = 4`, because the enumeration scanned all
-`2^(2^n)` blade subsets — 4 294 967 296 of them at `n = 5`, so the engine
-refused rather than running for hours. It now walks the **fixed points of the
-closure operator** (Ganter's next closure), one pass per closed subspace, so the
-cost is the number of *closed subspaces* and not the number of subsets: at
-`n = 5` that is **375** for a non-degenerate algebra and **31 242 668** for
-`(0,0,5)`, both measured.
+**The tolerance stopped being an argument and became part of the value.** Until
+0.1.2 a classification needed a tolerance from outside — `classifyTol(v, tol)`,
+`isZeroDivisor(a, tol)` — so "is this vector null?" was answered by a constant
+chosen somewhere else. `src/mrs/contract.zig` now carries the value together
+with a bound on how far the exact value may be from it, propagated by the same
+operations that produce the value. The zero test becomes a consequence:
 
-That is a change of method, so the old one is kept as the reference rather than
-deleted: `countsBrute` still scans every subset, and a test asserts the two
-agree on **all 34 signatures with `p+q+r <= 4`**. That agreement is what
-licenses the walk where the scan cannot go — not an argument about the walk
-being clever.
+> a number is indistinguishable from zero when its own radius covers zero, and
+> **not** when it is small.
 
-`(2,3,0)` — the signature the multi-time audit asked about first and had to
-leave unanswered — is now a row of the table: **375** closed blade-spanned
-subalgebras, none of them a proper two-sided ideal (the r = 0 rule from the
-table below, holding at a dimension where it used to be out of reach).
+`demo` shows it on `v = (1, 1, 0, 0)`: `g(v,v) = 0 ± 5.55e-16`, so the vector is
+null — by the radius, not by a threshold. And `1e-300` known exactly is *not*
+called zero, which is the other half of the same rule.
 
-Two other things moved with it:
+**The same "contract" has three meanings, and they are now distinguishable in
+the type:** `bit_exact` (same bits on every run — what navigation and audit
+need), `correctly_rounded`, and `bounded(radius)`. The contract can be a
+compile-time parameter, and when it carries no radius the layer *is* the old
+code path: `evalFormWith(.bit_exact, …)` returns a plain `f64` from the body
+`f.eval(v)`, so those contracts cost nothing by construction rather than by an
+optimiser.
 
-- the report's default range is now the whole supported range, so the
-  `explore-full` step is gone — it would have been a second name for the default;
-- the enum of closed subspaces at `r = 0` now has a closed form. They are
-  exactly the GF(2)-linear subspaces of the blade masks, so their number is
-  `1 + Σ_k [n choose k]_2` — 68 at `n = 4`, 375 at `n = 5`. This is stated in
-  the source as the reason the counts are what they are.
+**The honest part, and it is the interesting part.** The bounds were measured
+before the module was written, and the measurement killed the naive version.
+Over 100 000 boosts with mixed signs, the same rules give:
 
-### Also fixed in 0.1.2
+| representation | propagated radius | useful? |
+|---|---:|---|
+| additive chart (rapidity) | ≈ 1e-12 | yes |
+| split-complex product | ≈ 5e17 | **no** |
+| matrix product (determinant) | ≈ 5e18 | **no** |
 
-- **Three Polish strings survived the English-only pass and are now translated:**
-  `src/mrs/signature.zig`, `src/bench/t4_derivative.zig`, and one that reached
-  the published `results/RESULTS.md` as a table row label (`MRS: liczby
-  dualne`). They carry no diacritics, which is why both the dictionary scan and
-  the hand read in 0.1.1 walked past them. The 0.1.1 changelog entry claimed no
-  Polish text remained in `src/`; that entry is corrected.
-- **Eight references to a `docs/` directory that does not exist** — including one
-  printed into the `demo` output — now point at files that are actually in the
-  repository (`README.md`, `CHANGELOG.md`, `results/RESULTS.md`).
-- Three lines truncated by the translation pass, which had left a duplicated
-  fragment behind them.
+All three are *correct* worst-case bounds; the true errors are ~3e-14 in every
+case. They are absolute-value rules, and an absolute-value rule cannot see the
+cancellation that the additive coordinate makes explicit. So a contract is
+dischargeable exactly where the representation is well conditioned — which is
+the thesis of this project, arrived at from the error-propagation side instead
+of from a stopwatch. The price of the radius, measured (T5): **1.7×–2.1×** on a form
+evaluation, paid only where a radius is asked for.
+
+Everything from 0.1.2 — P4 reaching `p+q+r = 5` by walking closed subspaces
+instead of scanning subsets — is in [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
@@ -79,6 +79,7 @@ work, and the engine says so rather than guessing.
 | both sign conventions `(+,-,-,-)` and `(-,+,+,+)` | all of the above | algebraic results are convention invariant, and that invariance is itself tested |
 | exact reproducibility | all reports | byte-identical output between runs |
 | form evaluation, boost composition, derivatives | `n <= 1024` for the numeric layer | `f64`, with per-operation error contracts stated in the source |
+| **error contracts** — a value carries a bound on its own error | form evaluation and the operations of `contract.zig`; the zero test follows from the radius instead of a supplied tolerance | forward bounds, checked against `f128` on grids (`verify` A15); the cost is measured as T5 |
 
 ### Not supported
 
@@ -141,6 +142,7 @@ are reported in full in `results/RESULTS.md`.
 | **T3** sparse multivectors | **903×** over a dense product at `n = 12, k = 4`; **13×** over the same algorithm fed a dense array, which is exactly the cost of discovering sparsity. |
 | **T3b** crossover | the cost constant derived from the data is `C = 1888`; the measured crossover sits between `k = 8` and `k = 32`, and the prediction agrees with the measurement in 8 of 8 points. |
 | **T4** derivative | dual numbers give the derivative **exactly** — bit for bit identical to the analytic formula — against `2.9·10⁻⁸` for the best tuned central difference, and about 1.5× faster. |
+| **T5** error radius | the price of carrying a bound on the error: **1.67×–2.10×** on a form evaluation (worst at `n = 1024`), and **nothing** for the contracts that carry no radius, because those return a plain `f64` from the same body as before. Not a speed claim — a price list. |
 
 Where MRS-LAB wins, the win survives every baseline tried: the form inverse
 (T1b), invariant-preserving composition (T2b), exact derivatives (T4). Where it

@@ -7,6 +7,7 @@
 
 pub const signature = @import("mrs/signature.zig");
 pub const form = @import("mrs/form.zig");
+pub const contract = @import("mrs/contract.zig");
 pub const split_complex = @import("mrs/split_complex.zig");
 pub const dual = @import("mrs/dual.zig");
 pub const clifford = @import("mrs/clifford.zig");
@@ -18,6 +19,7 @@ test {
     // not analyse the file in test context and collects no tests from it.
     _ = signature;
     _ = form;
+    _ = contract;
     _ = split_complex;
     _ = dual;
     _ = clifford;
