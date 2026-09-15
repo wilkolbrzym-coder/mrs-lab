@@ -28,7 +28,7 @@ const Z = mrs.split_complex.Z;
 const causal = mrs.causal;
 const cl = mrs.clifford;
 
-const VERSION = "MRS-LAB 0.1.0";
+const VERSION = "MRS-LAB 0.1.1";
 
 // ---------------------------------------------------------------------------
 // Input

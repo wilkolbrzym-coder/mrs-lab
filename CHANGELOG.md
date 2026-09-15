@@ -7,13 +7,13 @@ All notable changes to MRS-LAB are recorded here. The format follows
 Two rules from the README apply to every entry below: a scope limit is a scope
 limit and not a negative result, and "not shown" never means "impossible".
 
-## [Unreleased] — 0.1.1
+## [0.1.1] — 2026-09-15
 
 Audit of the multi-time signatures (p >= 2), i.e. exactly the region where
 causality is supposed to break: two and three time dimensions, with and without
 spatial dimensions. Two defects were found there, both in the causal layer, one
 of them silently wrong. Everything below is reproducible: `zig build test`
-(285 tests, Debug + ReleaseSafe + ReleaseFast), `zig build verify` (16 checks),
+(291 tests, Debug + ReleaseSafe + ReleaseFast), `zig build verify` (16 checks),
 `zig build explore` (results byte-identical to the committed ones).
 
 ### Fixed
@@ -46,12 +46,29 @@ of them silently wrong. Everything below is reproducible: `zig build test`
   Guarded by `explore/causal_sweep.zig :: q = 0: the generator produces nothing,
   the search is empty, and no claim is made`.
 
-### Fixed
-
 - A self-contradicting sentence in the T2 report: the prose said "the ratio is 1"
   while the printed number was a noisy `1.036x`. The identity check between MRS-LAB
   and a classical rapidity variable is exact by construction, so the sentence now
   reads "the ratio is 1 up to timer noise" and matches whatever the timer prints.
+
+- **Translation leftovers.** The English-only pass of commit b8af845 missed
+  strings and comments that a line-oriented scan does not catch: debug output
+  inside a test, a `@panic` message, test names, `Class.label()`, and 70 dodgy
+  comment lines, 67 of which carried duplicated comment markers (`///  /// …`)
+  left by the rewriting pass. All of those are translated. **The claim that no
+  Polish text remained in `src/` was too strong**: three strings carried no
+  diacritics and survived both the dictionary check and the hand read. They were
+  found and fixed in 0.1.2, which also corrects this entry.
+
+- **A test that wrote to stderr made the whole build step look broken.** The
+  P2b/P2c observation test printed its count with `std.debug.print` on the
+  SUCCESS path, and in Zig 0.16 the build runner answers any stderr from a test
+  process with `failed command: … --listen=-` lines attributed to the step —
+  while the build still succeeds and all tests pass. Evidence is now carried by
+  assertions (`expectEqual(10, differ_a)`), so `zig build test` prints a clean
+  summary, and a real failure is no longer buried in noise. Diagnosis of the
+  noise is reproducible: adding a `std.debug.print` to any passing test makes
+  that step emit the same line.
 
 ### Changed
 
@@ -74,25 +91,6 @@ of them silently wrong. Everything below is reproducible: `zig build test`
 - `form.Class.label()` now returns English (`"temporal (timelike)"`,
   `"spatial (tachyonic)"`); it is public, printed by `demo` and `verify`, and
   used to leak Polish into the console of an English-only project.
-
-### Fixed
-
-- **Translation leftovers.** The English-only pass of commit b8af845 missed
-  strings and comments that a line-oriented scan does not catch: debug output
-  inside a test, a `@panic` message, test names, `Class.label()`, and 70 dodgy
-  comment lines, 67 of which carried duplicated comment markers (`///  /// …`)
-  left by the rewriting pass. All of them are translated; no Polish text remains
-  in `src/` (checked against the system `pl_PL` dictionary, then read by hand).
-
-- **A test that wrote to stderr made the whole build step look broken.** The
-  P2b/P2c observation test printed its count with `std.debug.print` on the
-  SUCCESS path, and in Zig 0.16 the build runner answers any stderr from a test
-  process with `failed command: … --listen=-` lines attributed to the step —
-  while the build still succeeds and all tests pass. Evidence is now carried by
-  assertions (`expectEqual(10, differ_a)`), so `zig build test` prints a clean
-  summary, and a real failure is no longer buried in noise. Diagnosis of the
-  noise is reproducible: adding a `std.debug.print` to any passing test makes
-  that step emit the same line.
 
 ### Added
 
