@@ -121,7 +121,7 @@ fn denseToTerms(a: []const f64, out: []cl.Term) usize {
 }
 
 // ---------------------------------------------------------------------------
-// Budowa instancji testowych
+// Building the test instances
 // ---------------------------------------------------------------------------
 
 fn termLessThanPublic(_: void, a: cl.Term, b: cl.Term) bool {
@@ -383,7 +383,7 @@ fn runCrossover(
     }
     const factor = if (cnt > 0) sum / @as(f64, @floatFromInt(cnt)) else 1.0;
 
-    try w.writeAll("\n### T3b — wniosek liczbowy\n\n");
+    try w.writeAll("\n### T3b — numeric verdict\n\n");
     try w.print("Cost ratio derived from the measurement, sparse operation to dense pair: " ++
         "**C = {d:.1}**. It is the only constant in the model, and it is not guessed — " ++
         "it falls out of the data.\n\n", .{factor});

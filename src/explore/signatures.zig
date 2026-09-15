@@ -3,7 +3,7 @@
 //! Questions P2 and P4 depend only on the triple (p,q,r), not on the order of
 //! the roles in the vector. So we enumerate TRIPLES and build signatures from
 //! them in a fixed canonical order: temporal dimensions first, then spatial,
-//! przestrzenne, potem zdegenerowane.
+//! then degenerate.
 //!
 //! The order is part of the contract: the report must be identical between
 //! runs, otherwise it cannot be compared or tested.
@@ -148,13 +148,13 @@ test "enumeration is deterministic and free of duplicates" {
         for (i + 1..na) |j| {
             try std.testing.expect(!buf_a[i].eql(buf_a[j]));
         }
-        // zakres
+        // in range
         try std.testing.expect(buf_a[i].n() >= 1);
         try std.testing.expect(buf_a[i].n() <= MAX_TOTAL);
     }
 }
 
-test "SigBuf buduje poprawne sygnatury i algebry" {
+test "SigBuf builds valid signatures and algebras" {
     const alloc = std.testing.allocator;
     _ = alloc;
     var buf: [64]Triple = undefined;

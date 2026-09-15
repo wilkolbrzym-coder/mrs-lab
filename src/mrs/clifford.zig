@@ -6,20 +6,20 @@
 //! e_i² = s_i is data, not the result of a matrix multiplication.
 //!
 //! Reordering rule (canonical sign). blade(mask) is the product
-//! e_{i1}·e_{i2}·…·e_{ik} przy i1 < i2 < … < ik. Iloczyn blade(mask)·e_i
+//! e_{i1}·e_{i2}·…·e_{ik} for i1 < i2 < … < ik. The product blade(mask)·e_i
 //! is computed by appending e_i on the right and moving it leftwards:
 //!
 //!   * if bit i is already in the mask — e_i meets itself, gives s_i
 //!     and the bit clears;
 //!   * every generator with index greater than i that e_i passes
-//!     daje znak −1.
+//!     picks up a sign of −1.
 //!
 //! Cost of one blade multiplication: O(number of generators), no allocation.
 //!
 //! Asymptotics of a multivector: a dense multivector has 2^n coefficients, so
 //! a naive product costs 4^n. The product of multivectors with k nonzero
 //! coefficients costs k² (up to the cost of merging), and that is thesis T3.
-//! teza T3 (docs/07).
+//! thesis T3 (docs/07).
 
 const std = @import("std");
 const sig = @import("signature.zig");
@@ -100,14 +100,14 @@ pub const BladeProd = struct {
 };
 
 /// Blade multiplication. Complexity O(popcount(B)) — at most n steps in practice,
-/// bez alokacji i bez tablic 2^n × 2^n.
+/// without allocation and without 2^n × 2^n tables.
 pub fn bladeMul(alg: Algebra, a_mask: u32, b_mask: u32) BladeProd {
     var sign: i8 = 1;
     var mask = a_mask;
     var b = b_mask;
     while (b != 0) {
         const i: u5 = @intCast(@ctz(b));
-        b &= b - 1; // b &= b - 1; // iterate over the generators of B in increasing order
+        b &= b - 1; // iterate over the generators of B in increasing order
         // generators with index > i that e_i passes
         const above: u32 = mask >> (i + 1);
         if (@popCount(above) & 1 == 1) sign = -sign;
@@ -123,7 +123,7 @@ pub fn bladeMul(alg: Algebra, a_mask: u32, b_mask: u32) BladeProd {
 }
 
 // ---------------------------------------------------------------------------
-// Reprezentacja rzadka
+// Sparse representation
 // ---------------------------------------------------------------------------
 
 pub const Term = struct {
@@ -173,7 +173,7 @@ pub const Sparse = struct {
 };
 
 /// Geometric product of sparse multivectors.
-/// Koszt: O(nnz(a)·nnz(b)) operacji na blatach + O(m log m) scalania.
+/// Cost: O(nnz(a)·nnz(b)) blade operations + O(m log m) merging.
 pub fn mulSparse(
     alloc: std.mem.Allocator,
     alg: Algebra,
@@ -186,7 +186,7 @@ pub fn mulSparse(
     for (a.terms) |ta| {
         for (b.terms) |tb| {
             const bp = bladeMul(alg, ta.mask, tb.mask);
-            if (bp.sign == 0) continue; // generator nilpotentny
+            if (bp.sign == 0) continue; // nilpotent generator
             const contrib = ta.coeff * tb.coeff * @as(f64, @floatFromInt(bp.sign));
             const gop = try acc.getOrPut(bp.mask);
             if (!gop.found_existing) gop.value_ptr.* = 0.0;
@@ -464,10 +464,10 @@ test "defining relations of the Clifford algebra" {
     }
 }
 
-test "odtworzenie Cl(1,3) z Minkowskiego 3+1" {
+test "reconstructing Cl(1,3) from Minkowski 3+1" {
     const alg = try Algebra.fromSignature(sig.minkowski_3_1);
-    try std.testing.expectEqual(@as(i8, 1), alg.squares[0]); // czas: e_0² = +1
-    try std.testing.expectEqual(@as(i8, -1), alg.squares[1]); //     try std.testing.expectEqual(@as(i8, -1), alg.squares[1]); // space
+    try std.testing.expectEqual(@as(i8, 1), alg.squares[0]); // temporal: e_0² = +1
+    try std.testing.expectEqual(@as(i8, -1), alg.squares[1]); // space
     try std.testing.expectEqual(@as(i8, -1), alg.squares[2]);
     try std.testing.expectEqual(@as(i8, -1), alg.squares[3]);
     try std.testing.expectEqual(@as(usize, 16), alg.basisCount());
@@ -496,7 +496,7 @@ test "associativity of blade multiplication (random triples)" {
     }
 }
 
-test "generator nilpotentny: sygnatura zdegenerowana daje e_i² = 0" {
+test "nilpotent generator: a degenerate signature gives e_i² = 0" {
     const alg = try Algebra.fromSignature(sig.degenerate_2_1_1);
     try std.testing.expectEqual(@as(i8, 0), alg.squares[3]);
     const p = bladeMul(alg, 1 << 3, 1 << 3);
@@ -507,7 +507,7 @@ test "sparse and dense products give the same result" {
     const alloc = std.testing.allocator;
     const alg = try Algebra.fromSignature(sig.minkowski_3_1);
 
-    // rotor: skalar + biwektor e1*e2 (typowy element grupy Spin)
+    // rotor: scalar + bivector e1*e2 (a typical element of the Spin group)
     const a = Sparse{ .terms = &.{
         .{ .mask = 0b0110, .coeff = 0.8 },
         .{ .mask = 0b0000, .coeff = 0.6 },
@@ -536,11 +536,11 @@ test "sparse and dense products give the same result" {
 
 test "reverse: (e0*e1)~ = −e0*e1, a vector and a scalar unchanged" {
     const alg = try Algebra.fromSignature(sig.minkowski_3_1);
-    try std.testing.expectEqual(@as(i8, 1), alg.reverseSign(0b0000)); // skalar
-    try std.testing.expectEqual(@as(i8, 1), alg.reverseSign(0b0001)); //     try std.testing.expectEqual(@as(i8, 1), alg.reverseSign(0b0001)); // vector
+    try std.testing.expectEqual(@as(i8, 1), alg.reverseSign(0b0000)); // scalar
+    try std.testing.expectEqual(@as(i8, 1), alg.reverseSign(0b0001)); // vector
     try std.testing.expectEqual(@as(i8, -1), alg.reverseSign(0b0011)); // biwektor
-    try std.testing.expectEqual(@as(i8, -1), alg.reverseSign(0b0111)); //     try std.testing.expectEqual(@as(i8, -1), alg.reverseSign(0b0111)); // trivector
-    try std.testing.expectEqual(@as(i8, 1), alg.reverseSign(0b1111)); //     try std.testing.expectEqual(@as(i8, 1), alg.reverseSign(0b1111)); // 4-vector
+    try std.testing.expectEqual(@as(i8, -1), alg.reverseSign(0b0111)); // trivector
+    try std.testing.expectEqual(@as(i8, 1), alg.reverseSign(0b1111)); // 4-vector
 }
 
 test "the allocation-free variant agrees with the allocating one" {

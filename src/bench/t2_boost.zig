@@ -9,8 +9,8 @@
 //!   B1  chain of 2x2 matrix products       — 8 multiplications + 4 additions / step
 //!   B2  rapidity extraction via atanh + summation — 1 transcendental / step
 //!
-//! Warianty MRS:
-//!   M1  akumulacja rapidyty                     — 1 dodawanie / krok
+//! MRS variants:
+//!   M1  rapidity accumulation                   — 1 addition / step
 //!   M2  chain of split-complex products    — 4 multiplications + 2 additions / step
 //!
 //! We also measure DRIFT. The matrix representation of the group accumulates
@@ -50,7 +50,7 @@ pub const Ctx = struct {
     n: usize,
     thetas: []f64,
     zs: []Z,
-    /// 4 liczby na boost: [cosh, sinh, sinh, cosh]
+    /// 4 numbers per boost: [cosh, sinh, sinh, cosh]
     mats: []f64,
     theta_acc: f64 = 0,
     z_acc: Z = Z.one,
@@ -120,28 +120,28 @@ fn runConvRapidityAtanh(c: *Ctx) void {
 }
 
 // ---------------------------------------------------------------------------
-// Dryf numeryczny
+// Numeric drift
 // ---------------------------------------------------------------------------
 
 pub const Drift = struct {
     n: usize,
-    /// |N(z) − 1| przy sumowaniu kompensowanym rapidyty.
+    /// |N(z) − 1| under compensated summation of rapidities.
     mrs_kahan_inv_err: f64,
-    /// |N(z) − 1| przy sumowaniu naiwnym.
+    /// |N(z) − 1| under naive summation.
     mrs_plain_inv_err: f64,
-    ///     /// max |m_ij − analytic matrix| for the matrix chain.
+    /// max |m_ij − analytic matrix| for the matrix chain.
     matrix_elem_err: f64,
-    ///     /// |det m − 1| for the matrix chain (Lorentz invariant).
+    /// |det m − 1| for the matrix chain (Lorentz invariant).
     matrix_det_err: f64,
-    ///     /// |rapidity(m) − Σθ| for the matrix chain.
+    /// |rapidity(m) − Σθ| for the matrix chain.
     matrix_rapidity_err: f64,
-    ///     /// |Σθ plain − Σθ Kahan|, i.e. the summation error of the rapidity itself.
+    /// |Σθ plain − Σθ Kahan|, i.e. the summation error of the rapidity itself.
     rapidity_sum_err: f64,
 };
 
 /// A chain of N boosts with a FIXED total rapidity. Normalisation is necessary
 /// so that the measurement isolates the ACCUMULATION of error rather than the
-/// mapy θ → (cosh θ, sinh θ) — to drugie mierzymy osobno w
+/// the map θ → (cosh θ, sinh θ) — the latter is measured separately in
 /// `conditioningOfRapidityMap`, because that is a different phenomenon.
 pub fn measureDrift(alloc: std.mem.Allocator, n: usize) !Drift {
     const thetas = try alloc.alloc(f64, n);
@@ -201,7 +201,7 @@ pub fn measureDrift(alloc: std.mem.Allocator, n: usize) !Drift {
 }
 
 /// Conditioning of the map θ → (cosh θ, sinh θ): how accurately the
-/// multyplikatywna trzyma niezmiennik N(z) = cosh²θ − sinh²θ = 1.
+/// multiplicative chart holds the invariant N(z) = cosh²θ − sinh²θ = 1.
 /// The error grows like e^{2|θ|}·eps, because cosh² and sinh² are two huge
 /// numbers whose difference is small — classic cancellation.
 pub fn conditioningOfRapidityMap(theta: f64) f64 {
@@ -301,7 +301,7 @@ pub fn run(
     if (best_ratio_n > 0) {
         try w.print("\n**Ratio of MRS to the BEST KNOWN classical method: " ++
             "{d:.3}x.** That method is plain addition of rapidities held in f64 " ++
-            "variables — literally the same code, which is why the ratio is 1. This is " ++
+            "variables — literally the same code, so the ratio is 1 up to timer noise. This is " ++
             "an IDENTITY CHECK, not a measurement: it shows that the classical best " ++
             "method for this problem is the same computation. In other words, the " ++
             "2.5-2.8x advantage over matrices **is not an advantage of MRS over " ++

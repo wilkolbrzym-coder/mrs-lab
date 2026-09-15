@@ -52,7 +52,7 @@ pub fn run(
     defer alloc.free(ps);
     var prng = std.Random.DefaultPrng.init(0xD00D);
     const rnd = prng.random();
-    for (ps) |*p| p.* = 4.0 + rnd.float(f64) * 96.0; // zakres propagacji |p| > μ
+    for (ps) |*p| p.* = 4.0 + rnd.float(f64) * 96.0; // propagation range |p| > μ
 
     try w.writeAll("### T4 — derivative of the composite f(p) = sqrt(p^2 - mu^2)·sin(p)\n\n");
     try w.writeAll("The function is deliberately composite. For E(p) = sqrt(p^2 - mu^2) alone the " ++
@@ -101,7 +101,7 @@ pub fn run(
             "central-difference step.\n\n", .{acc_ad.max_ad_error});
     }
 
-    try w.writeAll("### T4b — koszt jednej pochodnej\n\n");
+    try w.writeAll("### T4b — cost of one derivative\n\n");
     try w.writeAll("| N points | MRS: dual | central difference | difference/MRS |\n");
     try w.writeAll("|---:|---:|---:|---:|\n");
 

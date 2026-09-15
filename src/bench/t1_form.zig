@@ -1,4 +1,4 @@
-//! MRS :: teza T1 — reprezentacja formy
+//! MRS :: thesis T1 — form representation
 //!
 //! Hypothesis: a form given by its signature (diagonal) evaluates in O(n) while
 //! a matrix representation takes O(n^2); the inverse O(n) against O(n^3).
@@ -9,7 +9,7 @@
 //! the fast path. Any competent engineer who knows their metric is diagonal
 //! writes that code.
 //!
-//! Wniosek z pomiaru (docs/07): asymptotycznej przewagi TUTAJ NIE MA,
+//! Verdict of the measurement (docs/07): there is NO asymptotic advantage
 //! if the baseline may inspect its data once. The advantage of MRS-LAB is that
 //! this knowledge lives in the type, so it can neither be lost nor cost a branch
 //! in the hot loop. We say so plainly instead of inflating the result by
@@ -24,7 +24,7 @@ const Signature = mrs.signature.Signature;
 const DiagonalForm = mrs.form.DiagonalForm;
 const DenseForm = mrs.form.DenseForm;
 
-/// Konwencjonalna implementacja z jednorazowym rozpoznaniem struktury.
+/// A conventional implementation that detects the structure once.
 /// This is the honest baseline: we do not pretend nobody notices the diagonal.
 pub const SmartDense = struct {
     n: usize,
@@ -132,7 +132,7 @@ pub fn run(
     for (sizes) |n| {
         const sigv = try alloc.alloc(mrs.signature.Role, n);
         defer alloc.free(sigv);
-        // sygnatura z jednym czasem — realistyczny przypadek fizyczny
+        // a signature with a single time — the realistic physical case
         for (0..n) |i| sigv[i] = if (i == 0) .temporal else .spatial;
         const s = Signature{ .roles = sigv };
 

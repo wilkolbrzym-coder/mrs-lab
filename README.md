@@ -254,6 +254,7 @@ src/
   bench/       benchmark harness and theses T1-T4
   main.zig     CLI: demo | verify | bench | explore
 results/       generated tables and reports (committed on purpose)
+CHANGELOG.md   what changed between versions, and what is still open
 ```
 
 ## License

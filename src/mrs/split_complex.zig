@@ -1,4 +1,4 @@
-//! MRS-0 :: Liczby split-complex (hiperboliczne)
+//! MRS-0 :: Split-complex (hyperbolic) numbers
 //!
 //! z = re + j·im,  j² = +1.
 //!
@@ -26,7 +26,7 @@ pub const Z = struct {
 
     pub const zero: Z = .{ .re = 0, .im = 0 };
     pub const one: Z = .{ .re = 1, .im = 0 };
-    /// Jednostka hiperboliczna j, j² = +1.
+    /// The hyperbolic unit j, j² = +1.
     pub const j: Z = .{ .re = 0, .im = 1 };
 
     pub fn init(re: f64, im: f64) Z {
@@ -80,7 +80,7 @@ pub const Z = struct {
     ///   * re = 1e200 → N overflows to +inf → `conj/inf = 0`, i.e. the function
     ///     returned the ZERO element as the inverse, silently, and z·z⁻¹ ≠ 1.
     ///
-    /// Dlatego najpierw skalujemy: z = s·(r + j·i) przy s = |re|+|im|,
+    /// Hence we scale first: z = s·(r + j·i) with s = |re|+|im|,
     /// then N(z) = s²·Ñ, where Ñ = r²−i² is computed on order-one numbers, and the
     /// order one, so it neither underflows nor overflows. The result:
     /// conj(r+ji) / (s·Ñ).
@@ -90,7 +90,7 @@ pub const Z = struct {
         const r = a.re / s;
         const i = a.im / s;
         const nn_scaled = r * r - i * i;
-        if (nn_scaled == 0.0) return error.NotInvertible; // prawdziwy dzielnik zera
+        if (nn_scaled == 0.0) return error.NotInvertible; // a genuine zero divisor
         const denom = s * nn_scaled;
         return .{ .re = r / denom, .im = -i / denom };
     }
@@ -114,13 +114,13 @@ pub const Z = struct {
         return std.math.atanh(a.im / a.re);
     }
 
-    /// Macierz boostu w bazie (t, x): [[cosh, sinh], [sinh, cosh]].
+    /// The boost matrix in the (t, x) basis: [[cosh, sinh], [sinh, cosh]].
     /// Serves only as the reference representation in benchmark T2.
     pub fn boostMatrix(a: Z) [4]f64 {
         return .{ a.re, a.im, a.im, a.re };
     }
 
-    /// Zastosowanie boostu do wektora (t, x).
+    /// Applying a boost to a vector (t, x).
     pub fn apply(a: Z, t: f64, x: f64) [2]f64 {
         return .{ a.re * t + a.im * x, a.im * t + a.re * x };
     }
@@ -269,7 +269,7 @@ test "REGRESSION: the inverse works at both ends of the range" {
         Z.init(1e-160, 0),
         Z.init(1e160, 0),
         Z.init(1e-200, 1e-201),
-        Z.init(1e200, 1e199), // Z.init(1e200, 1e199), // under the naive version N overflowed to +inf
+        Z.init(1e200, 1e199), // under the naive version N overflowed to +inf
         Z.init(3, 1),
         Z.init(0, 1),
         Z.init(-2.5, 0.75),

@@ -3,7 +3,7 @@
 //! QUESTION (split into three predicates, because the project draft had one
 //! and it was internally contradictory):
 //!
-//!   P2a  N_sc(x·y) = N_sc(x)·N_sc(y),  gdzie N_sc(z) = Sc(z·z̄)
+//!   P2a  N_sc(x·y) = N_sc(x)·N_sc(y),  where N_sc(z) = Sc(z·z̄)
 //!   P2b  (x·y)·conj(x·y) = (x·conj x)·(y·conj y)   (an identity in the centre)
 //!   P2c  does z ↦ z·z̄ always land in the centre? (well-posedness of P2b)
 //!
@@ -34,9 +34,9 @@
 //! of identities, in integer arithmetic, with no tolerance and no probability.
 //! That is why the result may be called a decision rather than evidence.
 //!
-//! ZAKRES. Silnik rozstrzyga o ILOCZYNIE CLIFFORDA w danej sygnaturze.
-//! Nie rozstrzyga pytania „czy na tej przestrzeni istnieje JAKIEKOLWIEK
-//! multiplication with a multiplicative norm" — and that second question
+//! SCOPE. The engine decides about the CLIFFORD PRODUCT in a given signature.
+//! It does not decide the question "does ANY multiplication with a
+//! multiplicative norm exist on this space" — and that second question
 //! includes the octonions, which are NOT a Clifford algebra (Clifford is
 //! associative, the octonions are not). Hence the Hurwitz bound (1,2,4,8)
 //! dimension 8 in the Clifford family is Cl(0,3) ≅ H⊕H, not the octonions.
@@ -60,7 +60,7 @@ pub const Verdict = struct {
     grid_size: usize,
     pairs: usize,
     holds: bool,
-    ///     /// Witness of a refutation (only when `holds == false`).
+    /// Witness of a refutation (only when `holds == false`).
     witness_x: IntVec = IntVec{},
     witness_y: IntVec = IntVec{},
     has_witness: bool = false,
@@ -137,7 +137,7 @@ pub fn checkNormIsCentral(alg: cl.Algebra, grid: *[MAX_GRID]IntVec) Verdict {
     };
 }
 
-/// Sprawdza P2a: N_sc(x·y) = N_sc(x)·N_sc(y).
+/// Checks P2a: N_sc(x·y) = N_sc(x)·N_sc(y).
 pub fn checkScalarMultiplicative(alg: cl.Algebra, grid: *[MAX_GRID]IntVec) Verdict {
     const k = buildGrid(alg, grid);
     var i: usize = 0;
@@ -207,7 +207,7 @@ pub fn checkCenterMultiplicative(alg: cl.Algebra, grid: *[MAX_GRID]IntVec) Verdi
 }
 
 inline fn exact_mul(a: i64, b: i64) i64 {
-    return std.math.mul(i64, a, b) catch @panic("MRS explore: overflow w P2");
+    return std.math.mul(i64, a, b) catch @panic("MRS explore: overflow in P2");
 }
 
 /// The determining set is complete — that is the contract of this layer.
@@ -301,7 +301,7 @@ test "P2c: z·z̄ lands in the centre EXACTLY for 2^n <= 8" {
     const e23 = IntVec.basis(12);
     const xx = exact.add(e01, e23); // x = e01 + e23
     const nz = normOf(xx, alg);
-    try std.testing.expect(nz.c[15] != 0); //     try std.testing.expect(nz.c[15] != 0); // the e0123 term (mask 15)
+    try std.testing.expect(nz.c[15] != 0); // the e0123 term (mask 15)
     try std.testing.expectEqual(@as(u5, 1), exact.dimOfSet(exact.centerBasis(alg)));
 
     // for n = 3 the same mechanism does NOT break centrality, because e012 is central
@@ -371,11 +371,11 @@ test "RULE 1: P2a holds exactly when p+q <= 2 (degenerate dimensions invisible)"
     // The scalar part of the norm sees only Cl(p,q):
     //   * the product of two distinct blades is never a scalar (e_A·e_B = ±e_{A△B});
     //   * the product e_A·e_A is the product of the s_i over A, and that is ZERO
-    //     //     ZERO, when A contains a degenerate generator.
+    // ZERO, when A contains a degenerate generator.
     // Hence N_sc(x) = (scalar coefficient of x)². Therefore
     //   N_sc(xy) = (c0(x)·c0(y))² = N_sc(x)·N_sc(y),
     // so for r > 0 the identity holds IDENTICALLY, independently of Cl(p,q).
-    // Dla r = 0 pozostaje klasyczna granica Hurwitza w rodzinie Clifforda:
+    // For r = 0 what remains is the classical Hurwitz bound in the Clifford family:
     // multiplicativity holds exactly when 2^(p+q) <= 4.
     var grid: [MAX_GRID]IntVec = undefined;
     var buf: [64]sigs.Triple = undefined;
@@ -431,7 +431,7 @@ test "P2b differs from P2a; P2b == P2c in range (observation, not a theorem)" {
     // splitting P2 would be pointless. This test guards that the P2a vs P2b
     // difference is real, and RECORDS (without proof) that P2b and P2c agree over
     // the whole tested range n <= 4. The second is not claimed as a theorem.
-    // twierdzeniem: to wzorzec do zbadania, wpisany do docs/09_open.md.
+    // a theorem: it is a pattern to investigate, recorded in docs/09_open.md.
     var grid: [MAX_GRID]IntVec = undefined;
     var buf: [64]sigs.Triple = undefined;
     const n = sigs.enumerateTriples(&buf, sigs.MAX_TOTAL);
@@ -452,11 +452,12 @@ test "P2b differs from P2a; P2b == P2c in range (observation, not a theorem)" {
         if (c != b) differ_c += 1;
     }
     // P2a and P2b MUST differ — otherwise splitting the predicates is empty.
-    try std.testing.expect(differ_a > 0);
-    std.debug.print(
-        "P2a != P2b w {d} sygnaturach (np. ({d},{d},{d})); P2b != P2c w {d}\n",
-        .{ differ_a, witness_a.p, witness_a.q, witness_a.r, differ_c },
-    );
+    // The recorded count for the exhausted range n <= 4 is ASSERTED, not printed:
+    // a test that writes to stderr makes `zig build test` report a spurious
+    // "failed command:" line for the whole step (Zig 0.16 build runner), which
+    // buries real failures in noise.
+    try std.testing.expectEqual(@as(usize, 10), differ_a);
+    try std.testing.expect(witness_a.p + witness_a.q + witness_a.r > 0);
     // Observation without proof: P2b and P2c agree over the whole range.
     try std.testing.expectEqual(@as(usize, 0), differ_c);
 }

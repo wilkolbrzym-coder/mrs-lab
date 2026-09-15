@@ -3,9 +3,9 @@ const std = @import("std");
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
 
-    //     // Default ReleaseFast, because this is a measurement project: a benchmark
-    //     // in Debug mode would measure the safety instrumentation, not the algorithm.
-    //     // It can be overridden: zig build bench -Doptimize=Debug
+    // Default ReleaseFast, because this is a measurement project: a benchmark
+    // in Debug mode would measure the safety instrumentation, not the algorithm.
+    // It can be overridden: zig build bench -Doptimize=Debug
     const optimize = b.option(
         std.builtin.OptimizeMode,
         "optimize",
@@ -38,12 +38,12 @@ pub fn build(b: *std.Build) void {
     run_step.dependOn(&run_cmd.step);
 
     // --- testy -------------------------------------------------------------
-    //     // Tests run in THREE modes, not one. Reason: the default mode of this
-    //     // project is ReleaseFast (it is a measurement project), and in ReleaseFast
-    //     // the safety checks are OFF, so an overflow or an out-of-bounds access is
-    //     // silent UB. Debug and ReleaseSafe turn that into a panic, so only they
-    //     // actually check stability. ReleaseFast stays to catch errors that depend
-    //     // on optimisation.
+    // Tests run in THREE modes, not one. Reason: the default mode of this
+    // project is ReleaseFast (it is a measurement project), and in ReleaseFast
+    // the safety checks are OFF, so an overflow or an out-of-bounds access is
+    // silent UB. Debug and ReleaseSafe turn that into a panic, so only they
+    // actually check stability. ReleaseFast stays to catch errors that depend
+    // on optimisation.
     const test_step = b.step("test", "Run all tests (Debug + ReleaseSafe + ReleaseFast)");
 
     const test_modes = [_]std.builtin.OptimizeMode{ .Debug, .ReleaseSafe, .ReleaseFast };
@@ -69,7 +69,7 @@ pub fn build(b: *std.Build) void {
     }
 
     // --- komendy wygodne ---------------------------------------------------
-    const demo_step = b.step("demo", "Pokaz matematyczny MRS-0");
+    const demo_step = b.step("demo", "Mathematical walkthrough of MRS-0");
     const demo_cmd = b.addRunArtifact(exe);
     demo_cmd.step.dependOn(b.getInstallStep());
     demo_cmd.addArg("demo");

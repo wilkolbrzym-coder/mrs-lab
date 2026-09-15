@@ -9,7 +9,6 @@
 //! is closed under the product **if and only if** for every pair of blades in B
 //! their product (or zero) lies in the span of B. The check therefore reduces
 //! to a mask membership test — no floating point arithmetic and no tolerance.
-//! zmiennoprzecinkowej i bez tolerancji.
 //!
 //! MEASURED RESULTS (verified below, exhaustively for n <= 4):
 //!   * the blades containing a degenerate generator span a proper, nonzero,
@@ -75,7 +74,7 @@ pub fn isClosed(alg: cl.Algebra, set: u32) bool {
         for (0..m) |j| {
             if (set & (@as(u32, 1) << @intCast(j)) == 0) continue;
             const bp = cl.bladeMul(alg, @intCast(i), @intCast(j));
-            if (bp.sign == 0) continue; //             if (bp.sign == 0) continue; // zero belongs to every subspace
+            if (bp.sign == 0) continue; // zero belongs to every subspace
             if (set & (@as(u32, 1) << @intCast(bp.mask)) == 0) return false;
         }
     }
@@ -99,11 +98,11 @@ pub fn isCommutative(alg: cl.Algebra, set: u32) bool {
 
 /// Is the span of the set a two-sided ideal of the whole algebra?
 pub fn isTwoSidedIdeal(alg: cl.Algebra, set: u32) bool {
-    if (set == 0) return true; //     if (set == 0) return true; // the zero ideal
+    if (set == 0) return true; // the zero ideal
     const m = alg.basisCount();
     for (0..m) |b| {
         if (set & (@as(u32, 1) << @intCast(b)) == 0) continue;
-        for (0..m) |a| { //         for (0..m) |a| { // over all blades of the whole algebra
+        for (0..m) |a| { // over all blades of the whole algebra
             const ab = cl.bladeMul(alg, @intCast(a), @intCast(b));
             if (ab.sign != 0 and set & (@as(u32, 1) << @intCast(ab.mask)) == 0) return false;
             const ba = cl.bladeMul(alg, @intCast(b), @intCast(a));
@@ -180,11 +179,11 @@ pub fn countProperIdeals(alg: cl.Algebra) EnumerateError!usize {
     if (m > MAX_EXHAUSTIVE_BASIS) return error.TooManyBlades;
     var count: usize = 0;
     const total: u64 = @as(u64, 1) << @intCast(m);
-    var s: u64 = 1; //     var s: u64 = 1; // skip the empty set (the zero ideal)
+    var s: u64 = 1; // skip the empty set (the zero ideal)
     while (s < total) : (s += 1) {
         const set: u32 = @intCast(s);
         const dim: u5 = @intCast(@popCount(set));
-        if (dim == 0 or dim == m) continue; // trywialne
+        if (dim == 0 or dim == m) continue; // trivial
         if (isTwoSidedIdeal(alg, set)) count += 1;
     }
     return count;
@@ -240,7 +239,7 @@ test "even blades form a unital subalgebra of dimension 2^(n-1)" {
         const alg = try (sigs.SigBuf.build(buf[i], .mostly_minus)).algebra();
         const ev = exact.evenBlades(alg);
         try std.testing.expect(isClosed(alg, ev));
-        try std.testing.expect((ev & 1) != 0); // unitarna: zawiera skalar 1
+        try std.testing.expect((ev & 1) != 0); // unital: contains the scalar 1
         try std.testing.expectEqual(@as(u5, @intCast(alg.basisCount() / 2)), @as(u5, @intCast(@popCount(ev))));
     }
 }

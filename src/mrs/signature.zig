@@ -12,7 +12,6 @@
 //! Terminology note: the word "tachyon" is NOT invariant under the choice of
 //! convention, so we define it relative to the declared time cone rather than
 //! relative to the raw sign of g(v,v).
-//! znaku `g(v,v)`.
 
 const std = @import("std");
 
@@ -23,13 +22,13 @@ pub const MAX_DIM: usize = 8;
 /// Sign of the temporal dimensions. The enum VALUE is the sign of the temporal
 /// dimension, while the name says which metric convention is meant — that
 /// distinction is the source of the most common error in projects of this kind,
-/// w jednym miejscu.
+/// so it is resolved in one place.
 pub const TimeSign = enum(i8) {
     /// Convention (+,-,-,-): temporal dimensions have sign +1,
-    /// przestrzenne −1. Wektor czasowy ma g > 0.
+    /// spatial −1. A temporal vector has g > 0.
     mostly_minus = 1,
     /// Convention (-,+,+,+): temporal dimensions have sign -1,
-    /// przestrzenne +1. Wektor czasowy ma g < 0.
+    /// spatial +1. A temporal vector has g < 0.
     mostly_plus = -1,
 
     pub fn f(self: TimeSign) f64 {
@@ -92,7 +91,7 @@ pub const Signature = struct {
 
     /// Lorentzian = exactly one temporal dimension and no radical.
     /// This is the condition under which the causal relation is transitive
-    /// (Twierdzenie 5.1 w docs/05).
+    /// (Theorem 5.1 in docs/05).
     pub fn isLorentzian(self: Signature) bool {
         return self.p() == 1 and self.isNondegenerate();
     }
@@ -120,19 +119,19 @@ const t = Role.temporal;
 const s = Role.spatial;
 const d = Role.degenerate;
 
-/// Minkowski 3+1, konwencja (+,−,−,−). Cel walidacji MRS-0.
+/// Minkowski 3+1, convention (+,−,−,−). The validation target of MRS-0.
 pub const minkowski_3_1: Signature = .{
     .roles = &.{ t, s, s, s },
     .time_sign = .mostly_minus,
 };
 
-/// Minkowski 3+1 w konwencji (−,+,+,+). Ten sam obiekt, inny opis.
+/// Minkowski 3+1 in the (−,+,+,+) convention. The same object, another description.
 pub const minkowski_3_1_flipped: Signature = .{
     .roles = &.{ t, s, s, s },
     .time_sign = .mostly_plus,
 };
 
-/// Minkowski 1+1 — arena algebry split-complex.
+/// Minkowski 1+1 — the arena of the split-complex algebra.
 pub const minkowski_1_1: Signature = .{ .roles = &.{ t, s } };
 
 /// Signature (2,1): two times, one space. The transitivity witness.
@@ -150,7 +149,7 @@ pub const euclidean_4: Signature = .{ .roles = &.{ s, s, s, s } };
 // Testy
 // ---------------------------------------------------------------------------
 
-test "liczenie (p,q,r)" {
+test "counting (p,q,r)" {
     try std.testing.expectEqual(@as(usize, 1), minkowski_3_1.p());
     try std.testing.expectEqual(@as(usize, 3), minkowski_3_1.q());
     try std.testing.expectEqual(@as(usize, 0), minkowski_3_1.r());
@@ -169,7 +168,7 @@ test "liczenie (p,q,r)" {
 
 test "the sign convention does not change the role of a dimension" {
     // The same vector under two conventions: the form sign flips, the classification does not
-    // (czasowy/przestrzenny) pozostaje ta sama.
+    // (temporal/spatial) stays the same.
     const mm = minkowski_3_1.signAt(0);
     const mp = minkowski_3_1_flipped.signAt(0);
     try std.testing.expectApproxEqAbs(@as(f64, 1.0), mm, 1e-15);

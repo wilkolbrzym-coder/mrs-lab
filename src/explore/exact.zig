@@ -21,7 +21,7 @@ const std = @import("std");
 const mrs = @import("mrs");
 const cl = mrs.clifford;
 
-/// 2^MAX_TOTAL, gdzie MAX_TOTAL = 5.
+/// 2^MAX_TOTAL, where MAX_TOTAL = 5.
 pub const MAX_BASIS: usize = 32;
 
 pub const Overflow = error{Overflow};
@@ -111,7 +111,7 @@ pub fn mul(alg: cl.Algebra, a: IntVec, b: IntVec) IntVec {
             const bj = b.c[j];
             if (bj == 0) continue;
             const bp = cl.bladeMul(alg, @intCast(i), @intCast(j));
-            if (bp.sign == 0) continue; // generator nilpotentny
+            if (bp.sign == 0) continue; // nilpotent generator
             addExact(&out.c[bp.mask], mulExact(mulExact(ai, bj), @as(i64, bp.sign)));
         }
     }
@@ -145,13 +145,13 @@ pub fn reverseSign(mask: u32) i8 {
     return if (half % 2 == 0) 1 else -1;
 }
 
-/// Involucja gradacji: (−1)^k.
+/// Grade involution: (−1)^k.
 pub fn gradeInvSign(mask: u32) i8 {
     return if (gradeOf(mask) % 2 == 0) 1 else -1;
 }
 
 /// Clifford conjugate: reverse ∘ grade involution,
-/// znak (−1)^{k(k+1)/2}.
+/// sign (−1)^{k(k+1)/2}.
 pub fn cliffordConjSign(mask: u32) i8 {
     const k = gradeOf(mask);
     const half = (k *% (k +% 1)) / 2;
@@ -222,7 +222,7 @@ pub fn bladesWithDegenerate(alg: cl.Algebra) u32 {
     return set;
 }
 
-/// Blaty parzystej gradacji (podalgebra Spin).
+/// Even-grade blades (the Spin subalgebra).
 pub fn evenBlades(alg: cl.Algebra) u32 {
     const m = alg.basisCount();
     var set: u32 = 0;
@@ -281,7 +281,7 @@ test "the Clifford conjugate of a generator is a scalar" {
     try std.testing.expectEqual(@as(i64, 1), scalarPart(p1));
     try std.testing.expect(p1.nnz(m) == 1);
 
-    // e_12: conj = −e_12, iloczyn = +1
+    // e_12: conj = −e_12, product = +1
     const e12 = IntVec.basis(3);
     const p12 = mul(alg, e12, conj(e12, m));
     try std.testing.expectEqual(@as(i64, 1), scalarPart(p12));
@@ -296,7 +296,7 @@ test "conjugation signs agree with the clifford module" {
     while (i < m) : (i += 1) {
         const mask: u32 = @intCast(i);
         try std.testing.expectEqual(alg.reverseSign(mask), reverseSign(mask));
-        // koniugacja = reverse ∘ involucja
+        // conjugation = reverse ∘ grade involution
         try std.testing.expectEqual(
             @as(i8, alg.reverseSign(mask)) * gradeInvSign(mask),
             cliffordConjSign(mask),
@@ -304,7 +304,7 @@ test "conjugation signs agree with the clifford module" {
     }
 }
 
-test "centrum: Cl(0,3) ma wymiar 2, Cl(0,2) ma wymiar 1" {
+test "the centre: Cl(0,3) is 2-dimensional, Cl(0,2) is 1-dimensional" {
     const a3 = try (sigmod.SigBuf.build(.{ .p = 0, .q = 3 }, .mostly_minus)).algebra();
     const c3 = centerBasis(a3);
     try std.testing.expectEqual(@as(u5, 2), dimOfSet(c3));

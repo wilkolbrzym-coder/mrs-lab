@@ -1,4 +1,4 @@
-//! MRS :: harness pomiarowy
+//! MRS :: measurement harness
 //!
 //! Rules every benchmark in this project follows:
 //!
@@ -94,7 +94,7 @@ pub fn pickInner(cost_per_op: f64, target_ns: f64) usize {
     return @intFromFloat(n);
 }
 
-/// Zapisuje czas w czytelnej jednostce: "123 ns", "4.56 µs", "78.9 ms".
+/// Writes a time in a readable unit: "123 ns", "4.56 µs", "78.9 ms".
 pub fn writeDuration(w: anytype, ns: f64) !void {
     if (ns < 1e3) {
         try w.print("{d:.1} ns", .{ns});
