@@ -232,6 +232,12 @@ pub fn evalFormBounded(f: form.DiagonalForm, v: []const Bounded) Bounded {
 /// convention, exactly as before.
 pub fn classify(f: form.DiagonalForm, v: []const f64) form.Class {
     const g = evalForm(f, v);
+    // Same guard as `form.classifyTol`, for the same reason: a non-finite norm
+    // makes every comparison below false, and without this the fall-through
+    // would report a NaN vector as a tachyon. Note that a NaN INPUT propagates
+    // into the radius rather than being trapped by `couldBeZero` — nothing here
+    // claims to sanitise its input, only to refuse to classify it.
+    if (!std.math.isFinite(g.value)) return .invalid;
     if (g.couldBeZero()) return .null_like;
     const ts = if (f.use_signs) f.time_sign.f() else f.signature.time_sign.f();
     return if (g.value * ts > 0) .temporal else .spatial;
@@ -402,4 +408,20 @@ test "contracts describe themselves" {
     try std.testing.expectEqualStrings("bit exact", Contract.bit_exact.label());
     try std.testing.expect(Contract.bounded.carriesRadius());
     try std.testing.expect(!Contract.bit_exact.carriesRadius());
+}
+
+test "a non-finite input cannot be classified, on either path" {
+    const f = form.DiagonalForm.init(sig.minkowski_3_1);
+    const nan = [_]f64{ std.math.nan(f64), 0, 0, 0 };
+    const inf = [_]f64{ std.math.inf(f64), 1, 0, 0 };
+    try std.testing.expectEqual(form.Class.invalid, classify(f, &nan));
+    try std.testing.expectEqual(form.Class.invalid, classify(f, &inf));
+    // and the in-form path refuses it too, so the two cannot disagree
+    try std.testing.expectEqual(form.Class.invalid, f.classify(&nan));
+
+    // A non-finite input poisons the radius rather than being trapped: this is
+    // stated so nobody expects `couldBeZero` to double as validation.
+    const g = evalForm(f, &nan);
+    try std.testing.expect(!std.math.isFinite(g.radius));
+    try std.testing.expect(!g.couldBeZero());
 }

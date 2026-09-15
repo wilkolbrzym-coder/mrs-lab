@@ -28,6 +28,15 @@ pub const Class = enum {
     /// Opposite to the cone (in 3+1: spatial). Elements with nonzero norm in
     /// this class are the tachyon candidates.
     spatial,
+    /// No classification exists: some component is not finite, so `g(v,v)` is
+    /// not a number and no statement about the cone is true or false.
+    ///
+    /// Added in 0.1.5. Before it, both comparisons in `classifyTol` came out
+    /// false for a NaN norm and the vector was reported as **spatial** — a
+    /// tachyon — which is a guess wearing the clothes of an answer. At the
+    /// boundary with data from outside, "I cannot classify this" has to be
+    /// sayable.
+    invalid,
 
     pub fn isCausalLike(self: Class) bool {
         return self == .temporal or self == .null_like;
@@ -38,6 +47,7 @@ pub const Class = enum {
             .temporal => "temporal (timelike)",
             .null_like => "null (lightlike)",
             .spatial => "spatial (tachyonic)",
+            .invalid => "invalid (some component is not finite)",
         };
     }
 };
@@ -139,6 +149,10 @@ pub const DiagonalForm = struct {
 
     pub fn classifyTol(self: DiagonalForm, v: []const f64, tol: f64) Class {
         const g = self.eval(v);
+        // A non-finite component makes the norm not a number, and BOTH
+        // comparisons below would then be false — which used to fall through to
+        // `.spatial`, i.e. a NaN vector was reported as a tachyon.
+        if (!std.math.isFinite(g)) return .invalid;
         if (@abs(g) <= tol) return .null_like;
         const ts = if (self.use_signs) self.time_sign.f() else self.signature.time_sign.f();
         return if (g * ts > 0) .temporal else .spatial;

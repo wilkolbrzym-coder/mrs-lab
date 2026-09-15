@@ -7,6 +7,110 @@ All notable changes to MRS-LAB are recorded here. The format follows
 Two rules from the README apply to every entry below: a scope limit is a scope
 limit and not a negative result, and "not shown" never means "impossible".
 
+## [0.1.5] — 2026-09-15
+
+A larger step than the two before it: the exact mode is pushed to its limit, the
+rule it produced is tested outside the range where it was observed, and every
+declared error in the public API is provoked by a test for the first time.
+Reproducible: `zig build test` (381 tests, Debug + ReleaseSafe + ReleaseFast),
+`zig build verify` (18 checks), `zig build bench` (T1–T6 into
+`results/RESULTS.md`).
+
+There is no 0.1.4. The number was skipped by decision, not lost.
+
+### Added
+
+- **The exact mode, specialised (T6): 4.7×–8.0× on the P2 decision path.** The
+  decision procedures evaluate a polynomial on the determining set
+  `D = {0} ∪ {e_i} ∪ {e_i+e_j}`, so every vector they multiply has at most TWO
+  nonzero blade coefficients — and the old path did not know that. Three wastes
+  removed, and only those:
+  - it scanned all `m = 2^n` coefficient slots of both factors (1024 per pair at
+    `n = 5`, of which at most four do anything) — `exact.Terms` now walks the
+    nonzero terms;
+  - it recomputed the norm of `grid[j]` once per `i`, i.e. `k` times too often —
+    now once per element;
+  - it paid a bit loop inside `bladeMul` per product — `exact.ProductTable`
+    answers with one load.
+  The arithmetic is unchanged term for term, and the test requires identical
+  verdicts **and identical witnesses** against the dense path on all 55
+  signatures. That is a change of representation on the decision path, not a
+  change of method, which is the only reason the number may be called a speedup.
+  The dense path stays as the oracle. Measured on eight signatures: 4.7×–5.8× at
+  `n = 4`, 6.8×–8.0× at `n = 5`.
+- **`src/explore/p2_wide.zig` — the P2a rule taken outside its own range.** The
+  table states *P2a holds ⇔ `p+q <= 2`*, verified for `p+q+r <= 5`. That is an
+  observation INSIDE a range, and the engine refused beyond it for an
+  implementation reason (32-bit masks), not because the mathematics stops. The
+  wide path carries 64-blade masks and the prediction is DECLARED IN THE SOURCE,
+  before the run:
+
+  | signature | `p+q` | predicted | measured |
+  |---|---:|---|---|
+  | `(0,0,6)` | 0 | holds | **holds** |
+  | `(0,1,5)` | 1 | holds | **holds** |
+  | `(0,2,4)` | 2 | holds | **holds** |
+  | `(0,3,3)` | 3 | fails | **fails** |
+  | `(0,6,0)` | 6 | fails | **fails** |
+
+  Every line held — 4 329 961 pairs per signature, about five seconds for all
+  five. The rule survived a factor-16 enlargement of the space in which it was
+  found, and the line that matters most is the first: six nilpotent generators,
+  and the scalar norm is still multiplicative, so degenerate dimensions really
+  are invisible to it. The wide path is cross-checked against the in-range engine
+  on all 34 signatures with `n <= 4`, where both can run, before any `n = 6`
+  answer is allowed to mean anything; that cross-check runs in all three modes.
+- **`src/audit.zig` — the safety gate.** One test per error the public API can
+  return, plus a sweep over the edges of every declared domain.
+- `Class.invalid` — a vector the engine cannot classify now has somewhere to be.
+- `src/bench/t6_exact.zig`.
+
+### Fixed
+
+- **A vector containing NaN was classified as `spatial`, i.e. as a tachyon.**
+  Both comparisons in `classifyTol` come out false for a NaN norm, and the code
+  fell through to the last branch — so an input the engine cannot classify came
+  back with a confident answer, which is a guess wearing the clothes of a result.
+  `Class.invalid` exists for it now, and both `form.classifyTol` and
+  `contract.classify` return it. The same defect was present in the 0.1.3
+  contract path and was found while fixing this one.
+- **`exact.ProductTable.init` wrote past its table.** The table has
+  `32² = 1024` slots and the constructor indexed `i·m + j` with
+  `m = alg.basisCount()`, so a 64-blade algebra wrote to index 1024 — a panic in
+  ReleaseSafe (`zig test` proof: `index out of bounds: index 1024, len 1024`) and
+  3072 bytes of stack corruption in ReleaseFast, silently. The constructor now
+  returns `error.TooManyBlades`, and so does `norm_mult.checkScalarMultiplicative`.
+  `p2_wide`'s table was given the same guard before it could have the same bug,
+  with the boundary pinned on both sides (64 in, 128 out).
+- **Six declared error paths had no test that ever provoked them**:
+  `TooManyGenerators`, `NoGenerators`, `NegativeMu2`, all three variants of
+  `OrderError`, and the exact layer's overflow guard. A declared error that no
+  test triggers is a comment, not a safety feature. `DimensionTooLarge` and
+  `DegenerateForm` had one each; they now have one per entry point.
+- `p2_wide` multiplied the two scalar norms with a raw `*`, breaking the exact
+  layer's rule that a coefficient beyond `i64` panics rather than wrapping.
+
+### Changed
+
+- `results/RESULTS.md` gains T6 and a row for it in the summary table. As with
+  T5, T6 is not a comparison against outside code: the baseline is this
+  project's own previous implementation, kept in the source as the oracle.
+
+### Known follow-ups
+
+- **The error contract is still not wired into `causal.zig` or
+  `split_complex.zig`.** Their tolerance arguments keep their behaviour.
+  Converting them changes the verdicts returned for near-null vectors, and that
+  needs its own counterexamples rather than a paragraph of justification. The
+  plan for this release said it would be reverted rather than explained if it
+  went that way, and it did.
+- The number of pairs is fixed by the mathematics (`|D|² = 279 841` at `n = 5`)
+  and no representation change moves it. That is now the bound worth attacking.
+- `p2_wide` is an experiment, not the general engine: it decides P2a only, for
+  `n <= 6`, and it materialises the determining set in a
+  `2081 × sizeof(Terms)` array on the stack. Widening `MAX_BASIS` for the whole
+  engine would be a different change, with `n = 7` needing 128-blade masks.
+
 ## [0.1.3] — 2026-09-15
 
 The tolerance stops being an argument the caller supplies and becomes part of

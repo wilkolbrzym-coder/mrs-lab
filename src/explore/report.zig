@@ -86,7 +86,7 @@ pub fn evalTriple(
     row.center_dim = exact.dimOfSet(exact.centerBasis(alg));
 
     // --- P2: decision procedure -------------------------------------------
-    const v_a = nrm.checkScalarMultiplicative(alg, grid);
+    const v_a = try nrm.checkScalarMultiplicative(alg, grid);
     row.p2a = v_a.holds;
     const v_b = nrm.checkCenterMultiplicative(alg, grid);
     row.p2b = v_b.holds;

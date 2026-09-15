@@ -21,6 +21,7 @@ const t2 = @import("bench/t2_boost.zig");
 const t3 = @import("bench/t3_clifford.zig");
 const t4 = @import("bench/t4_derivative.zig");
 const t5 = @import("bench/t5_contract.zig");
+const t6 = @import("bench/t6_exact.zig");
 const explore_report = @import("explore/report.zig");
 
 const sig = mrs.signature;
@@ -30,7 +31,7 @@ const Z = mrs.split_complex.Z;
 const causal = mrs.causal;
 const cl = mrs.clifford;
 
-const VERSION = "MRS-LAB 0.1.3";
+const VERSION = "MRS-LAB 0.1.5";
 
 // ---------------------------------------------------------------------------
 // Input
@@ -870,6 +871,7 @@ fn report(
     try t3.run(io, alloc, w, quick);
     try t4.run(io, alloc, w, quick);
     try t5.run(io, alloc, w, quick);
+    try t6.run(io, alloc, w, quick);
 
     try w.writeAll("## Summary\n\n");
     try w.writeAll(
@@ -915,10 +917,13 @@ test {
     _ = @import("bench/t3_clifford.zig");
     _ = @import("bench/t4_derivative.zig");
     _ = @import("bench/t5_contract.zig");
+    _ = @import("bench/t6_exact.zig");
     _ = @import("explore/signatures.zig");
     _ = @import("explore/exact.zig");
     _ = @import("explore/subalgebra.zig");
     _ = @import("explore/norm_mult.zig");
     _ = @import("explore/report.zig");
     _ = @import("explore/causal_sweep.zig");
+    _ = @import("explore/p2_wide.zig");
+    _ = @import("audit.zig");
 }

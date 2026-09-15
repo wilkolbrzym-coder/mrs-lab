@@ -137,8 +137,10 @@ pub fn checkNormIsCentral(alg: cl.Algebra, grid: *[MAX_GRID]IntVec) Verdict {
     };
 }
 
-/// Checks P2a: N_sc(x·y) = N_sc(x)·N_sc(y).
-pub fn checkScalarMultiplicative(alg: cl.Algebra, grid: *[MAX_GRID]IntVec) Verdict {
+/// Checks P2a by the DENSE path. Kept as the oracle: it assumes nothing about
+/// the determining set, so it is the reference the sparse kernel is tested
+/// against. Costs ~3·10^8 useless zero-comparisons at n = 5.
+pub fn checkScalarMultiplicativeBrute(alg: cl.Algebra, grid: *[MAX_GRID]IntVec) Verdict {
     const k = buildGrid(alg, grid);
     var i: usize = 0;
     while (i < k) : (i += 1) {
@@ -148,6 +150,64 @@ pub fn checkScalarMultiplicative(alg: cl.Algebra, grid: *[MAX_GRID]IntVec) Verdi
             const ny = exact.scalarPart(normOf(grid[j], alg));
             const nxy = exact.scalarPart(normOf(exact.mul(alg, grid[i], grid[j]), alg));
             if (nxy != exact_mul(nx, ny)) {
+                return .{
+                    .kind = .scalar_multiplicative,
+                    .n = alg.n_gen,
+                    .grid_size = k,
+                    .pairs = k * k,
+                    .holds = false,
+                    .witness_x = grid[i],
+                    .witness_y = grid[j],
+                    .has_witness = true,
+                };
+            }
+        }
+    }
+    return .{
+        .kind = .scalar_multiplicative,
+        .n = alg.n_gen,
+        .grid_size = k,
+        .pairs = k * k,
+        .holds = true,
+    };
+}
+
+/// Checks P2a: N_sc(x·y) = N_sc(x)·N_sc(y), by the sparse kernel.
+///
+/// Three things the dense path does that this one does not, all of them waste:
+///
+///   * the norm of `grid[j]` is computed k times, once per `i`, although it
+///     does not depend on `i` — here it is computed once per element;
+///   * each factor is scanned over all m coefficients although the determining
+///     set has at most two nonzero ones — here a factor is a `Terms` list;
+///   * `e_i·e_j` costs a bit loop per call — here it is one table load.
+///
+/// The arithmetic is the same term for term, so the verdict is not merely
+/// equal but identical, witnesses included; the test below asserts exactly that
+/// over every signature the engine can build.
+pub fn checkScalarMultiplicative(alg: cl.Algebra, grid: *[MAX_GRID]IntVec) exact.TableError!Verdict {
+    const m = alg.basisCount();
+    // Refuses an algebra wider than MAX_BASIS instead of filling the product
+    // table past its end. `MAX_GRID` is sized for 32 blades, so a caller cannot
+    // legitimately reach this — which is exactly why it must be checked rather
+    // than assumed.
+    const table = try exact.ProductTable.init(alg);
+    const k = buildGrid(alg, grid);
+
+    // Once per element, not once per pair.
+    var terms: [MAX_GRID]exact.Terms = undefined;
+    var norms: [MAX_GRID]i64 = undefined;
+    for (0..k) |i| {
+        terms[i] = exact.Terms.of(grid[i], m);
+        norms[i] = exact.normScalarTerms(&table, terms[i]);
+    }
+
+    for (0..k) |i| {
+        const nx = norms[i];
+        for (0..k) |j| {
+            const p = exact.mulTerms(&table, terms[i], terms[j]);
+            const nxy = exact.normScalarTerms(&table, exact.Terms.of(p, m));
+            if (nxy != exact_mul(nx, norms[j])) {
                 return .{
                     .kind = .scalar_multiplicative,
                     .n = alg.n_gen,
@@ -243,7 +303,7 @@ test "P2a: true for n <= 2 in BOTH conventions" {
             .{ .p = 2, .q = 0 },
         }) |t| {
             const alg = try (sigs.SigBuf.build(t, ts)).algebra();
-            const v = checkScalarMultiplicative(alg, &grid);
+            const v = try checkScalarMultiplicative(alg, &grid);
             try std.testing.expect(v.holds);
             const c = checkCenterMultiplicative(alg, &grid);
             try std.testing.expect(c.holds);
@@ -254,7 +314,7 @@ test "P2a: true for n <= 2 in BOTH conventions" {
 test "P2a: false from n = 3 — the engine produces a witness" {
     var grid: [MAX_GRID]IntVec = undefined;
     const alg = try (sigs.SigBuf.build(.{ .p = 1, .q = 2 }, .mostly_minus)).algebra();
-    const v = checkScalarMultiplicative(alg, &grid);
+    const v = try checkScalarMultiplicative(alg, &grid);
     try std.testing.expect(!v.holds);
     try std.testing.expect(v.has_witness);
     // the witness must actually break the identity
@@ -317,7 +377,7 @@ test "the DECISION is complete: it finds a violation outside the grid" {
     // artefact of the choice of D.
     var grid: [MAX_GRID]IntVec = undefined;
     const alg = try (sigs.SigBuf.build(.{ .p = 0, .q = 3 }, .mostly_minus)).algebra();
-    const v = checkScalarMultiplicative(alg, &grid);
+    const v = try checkScalarMultiplicative(alg, &grid);
     try std.testing.expect(!v.holds);
 
     // random point outside the grid: the identity must fail for the vast majority
@@ -352,8 +412,8 @@ test "P2a depends on the sign convention only through the triple — same result
         const a_minus = try (sigs.SigBuf.build(buf[i], .mostly_minus)).algebra();
         const a_plus = try (sigs.SigBuf.build(buf[i], .mostly_plus)).algebra();
         try std.testing.expectEqual(
-            checkScalarMultiplicative(a_minus, &grid).holds,
-            checkScalarMultiplicative(a_plus, &grid).holds,
+            (try checkScalarMultiplicative(a_minus, &grid)).holds,
+            (try checkScalarMultiplicative(a_plus, &grid)).holds,
         );
     }
 }
@@ -389,7 +449,7 @@ test "RULE 1: P2a holds exactly when p+q <= 2 (degenerate dimensions invisible)"
         checked += 1;
         if (t.isDegenerate()) degenerate_seen += 1;
         const alg = try (sigs.SigBuf.build(t, .mostly_minus)).algebra();
-        const holds = checkScalarMultiplicative(alg, &grid).holds;
+        const holds = (try checkScalarMultiplicative(alg, &grid)).holds;
         const predicted = (@as(usize, t.p) + @as(usize, t.q)) <= 2;
         if (holds != predicted) {
             std.debug.print(
@@ -443,7 +503,7 @@ test "P2b differs from P2a; P2b == P2c in range (observation, not a theorem)" {
         const t = buf[i];
         if (t.n() > 4) continue;
         const alg = try (sigs.SigBuf.build(t, .mostly_minus)).algebra();
-        const a = checkScalarMultiplicative(alg, &grid).holds;
+        const a = (try checkScalarMultiplicative(alg, &grid)).holds;
         const b = checkCenterMultiplicative(alg, &grid).holds;
         const c = checkNormIsCentral(alg, &grid).holds;
         if (a != b) {
@@ -461,4 +521,48 @@ test "P2b differs from P2a; P2b == P2c in range (observation, not a theorem)" {
     try std.testing.expect(witness_a.p + witness_a.q + witness_a.r > 0);
     // Observation without proof: P2b and P2c agree over the whole range.
     try std.testing.expectEqual(@as(usize, 0), differ_c);
+}
+
+test "PREDICTION: the sparse kernel decides P2a identically to the dense oracle" {
+    // Not "equal": identical. Both walk i then j in the same order, and the
+    // arithmetic is the same term for term, so the FIRST violating pair is the
+    // same pair — the witness must match, not merely the verdict.
+    var buf: [64]sigs.Triple = undefined;
+    const n = sigs.enumerateTriples(&buf, sigs.MAX_TOTAL);
+    var checked: usize = 0;
+    var refuted: usize = 0;
+    for (0..n) |t| {
+        const alg = try (sigs.SigBuf.build(buf[t], .mostly_minus)).algebra();
+        var g_sparse: [MAX_GRID]IntVec = undefined;
+        var g_dense: [MAX_GRID]IntVec = undefined;
+        const v_sparse = try checkScalarMultiplicative(alg, &g_sparse);
+        const v_dense = checkScalarMultiplicativeBrute(alg, &g_dense);
+        checked += 1;
+        if (!v_sparse.holds) refuted += 1;
+
+        if (v_sparse.holds != v_dense.holds or
+            v_sparse.grid_size != v_dense.grid_size or
+            v_sparse.pairs != v_dense.pairs or
+            v_sparse.has_witness != v_dense.has_witness)
+        {
+            std.debug.print("P2a disagreement on ({d},{d},{d}): sparse holds={} dense holds={}\n", .{
+                buf[t].p, buf[t].q, buf[t].r, v_sparse.holds, v_dense.holds,
+            });
+            return error.TestUnexpectedResult;
+        }
+        if (v_sparse.has_witness) {
+            if (!exact.IntVec.eql(v_sparse.witness_x, v_dense.witness_x, alg.basisCount()) or
+                !exact.IntVec.eql(v_sparse.witness_y, v_dense.witness_y, alg.basisCount()))
+            {
+                std.debug.print("P2a witness differs on ({d},{d},{d})\n", .{ buf[t].p, buf[t].q, buf[t].r });
+                return error.TestUnexpectedResult;
+            }
+        }
+    }
+    // The comparison is worthless if every signature agrees — both would have
+    // to be equally vacuous. At least one signature must be refuted and one
+    // confirmed, or this test proves nothing.
+    try std.testing.expectEqual(sigs.tripleCount(sigs.MAX_TOTAL), checked);
+    try std.testing.expect(refuted > 0);
+    try std.testing.expect(checked - refuted > 0);
 }

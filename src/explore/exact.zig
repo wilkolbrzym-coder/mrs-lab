@@ -100,6 +100,129 @@ pub const IntVec = struct {
     }
 };
 
+// ---------------------------------------------------------------------------
+// The exact mode, specialised: no float, no tolerance, and 0 is exactly 0
+// ---------------------------------------------------------------------------
+//
+// WHY THESE EXIST. The decision procedures of P2 evaluate a polynomial on the
+// determining set D = {0} ∪ {e_i} ∪ {e_i+e_j}, so EVERY vector they ever
+// multiply has at most TWO nonzero blade coefficients. The generic `mul` above
+// does not know that: it scans all m = 2^n coefficients of both factors, i.e.
+// 2^10 = 1024 zero-comparisons per pair, of which at most four do anything.
+// With |D|² ≈ 2.8·10^5 pairs per signature that is ~3·10^8 wasted iterations.
+//
+// The three changes below remove exactly that waste and NOTHING else:
+//
+//   1. `Terms` keeps the nonzero coefficients with their masks, so a factor is
+//      walked in nnz steps instead of m;
+//   2. `ProductTable` answers "what is e_i·e_j" with one load, replacing the
+//      bit loop inside `clifford.bladeMul`;
+//   3. the scalar norms of the grid are computed once per element rather than
+//      once per PAIR, which the naive loop repeats k times over.
+//
+// The arithmetic is unchanged term for term, so the results are identical by
+// construction and the test at the bottom of this file asserts that they are
+// identical in fact — on every signature the engine can build, and on the
+// witness too, not only on the yes/no.
+
+/// A multivector reduced to its nonzero terms.
+pub const Terms = struct {
+    mask: [MAX_BASIS]u8 = undefined,
+    val: [MAX_BASIS]i64 = undefined,
+    len: usize = 0,
+
+    pub fn of(v: IntVec, basis_count: usize) Terms {
+        var t = Terms{};
+        for (0..basis_count) |i| {
+            const x = v.c[i];
+            if (x == 0) continue;
+            t.mask[t.len] = @intCast(i);
+            t.val[t.len] = x;
+            t.len += 1;
+        }
+        return t;
+    }
+};
+
+/// The table is sized for MAX_BASIS blades, so an algebra with more must be
+/// refused by the constructor rather than written past. Found by the 0.1.5
+/// review: `init` on a 64-blade algebra wrote to index 1024 of a 1024-slot
+/// array — a panic in ReleaseSafe and silent stack corruption in ReleaseFast.
+pub const TableError = error{TooManyBlades};
+
+/// `e_i · e_j` for every pair, precomputed once per algebra.
+/// A sign of 0 means the product vanishes (a shared nilpotent generator).
+pub const ProductTable = struct {
+    mask: [MAX_BASIS * MAX_BASIS]u8 = undefined,
+    sign: [MAX_BASIS * MAX_BASIS]i8 = undefined,
+    m: usize = 0,
+
+    pub fn init(alg: cl.Algebra) TableError!ProductTable {
+        const m = alg.basisCount();
+        if (m > MAX_BASIS) return error.TooManyBlades;
+        var t = ProductTable{ .m = m };
+        for (0..m) |i| {
+            for (0..m) |j| {
+                const bp = cl.bladeMul(alg, @intCast(i), @intCast(j));
+                t.mask[i * m + j] = @intCast(bp.mask);
+                t.sign[i * m + j] = bp.sign;
+            }
+        }
+        return t;
+    }
+};
+
+test "the product table refuses an algebra wider than its storage" {
+    // 2^6 = 64 blades against a table of 32^2 = 1024 slots: the write used to
+    // run 3072 bytes past the struct.
+    const alg6 = try cl.Algebra.init(6, [_]i8{1} ** cl.MAX_GEN);
+    try std.testing.expectEqual(@as(usize, 64), alg6.basisCount());
+    try std.testing.expectError(error.TooManyBlades, ProductTable.init(alg6));
+    // and exactly MAX_BASIS still works, so the guard is not off by one
+    const alg5 = try cl.Algebra.init(5, [_]i8{1} ** cl.MAX_GEN);
+    _ = try ProductTable.init(alg5);
+}
+
+/// Product of two sparse factors. Cost O(len(a)·len(b)) — at most four terms
+/// on the determining set, against 1024 zero-comparisons for the dense path.
+pub fn mulTerms(t: *const ProductTable, a: Terms, b: Terms) IntVec {
+    var out = IntVec{};
+    for (0..a.len) |i| {
+        const ai = a.val[i];
+        const am = a.mask[i];
+        for (0..b.len) |j| {
+            const idx = @as(usize, am) * t.m + b.mask[j];
+            const s = t.sign[idx];
+            if (s == 0) continue;
+            addExact(&out.c[t.mask[idx]], mulExact(mulExact(ai, b.val[j]), @as(i64, s)));
+        }
+    }
+    return out;
+}
+
+/// Scalar part of `a·conj(a)` without forming the product: only the pairs whose
+/// blade product is a scalar can contribute to it, so the work is O(len(a)²)
+/// with no 32-coefficient output array at all.
+///
+/// The term order mirrors `mul(a, conj(a))` exactly — first conjugate the
+/// second factor, then multiply the coefficients, then apply the sign — so the
+/// integer result is the one the dense path produces, not merely an equal one.
+pub fn normScalarTerms(t: *const ProductTable, a: Terms) i64 {
+    var out: i64 = 0;
+    for (0..a.len) |i| {
+        const ai = a.val[i];
+        for (0..a.len) |j| {
+            const idx = @as(usize, a.mask[i]) * t.m + a.mask[j];
+            const s = t.sign[idx];
+            if (s == 0) continue;
+            if (t.mask[idx] != 0) continue; // the scalar part only
+            const bj = mulExact(a.val[j], @as(i64, cliffordConjSign(a.mask[j])));
+            out = out + mulExact(mulExact(ai, bj), @as(i64, s));
+        }
+    }
+    return out;
+}
+
 /// Geometric product in exact arithmetic. Cost O(nnz(a)·nnz(b)).
 pub fn mul(alg: cl.Algebra, a: IntVec, b: IntVec) IntVec {
     const m = alg.basisCount();
