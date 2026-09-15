@@ -73,7 +73,7 @@ pub fn run(
         try w.print("| central difference | {e:.0} | {e:.3} |\n", .{ hh, acc.max_fd_error });
     }
     const acc_ad = tach.scanPhaseAccuracy(mu2, 4.0, 100.0, 2000, best_h);
-    try w.print("| **MRS: liczby dualne** | — | **{e:.3}** |\n\n", .{acc_ad.max_ad_error});
+    try w.print("| **MRS: dual numbers** | — | **{e:.3}** |\n\n", .{acc_ad.max_ad_error});
 
     try w.print("Best step for central differences is h = {e:.0} (error {e:.2}); for smaller " ++
         "h the error grows again because subtracting nearby numbers starts to win. That " ++

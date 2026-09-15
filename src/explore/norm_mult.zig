@@ -430,8 +430,9 @@ test "P2b differs from P2a; P2b == P2c in range (observation, not a theorem)" {
     // Why three predicates? Because they give different answers — if they did not,
     // splitting P2 would be pointless. This test guards that the P2a vs P2b
     // difference is real, and RECORDS (without proof) that P2b and P2c agree over
-    // the whole tested range n <= 4. The second is not claimed as a theorem.
-    // a theorem: it is a pattern to investigate, recorded in docs/09_open.md.
+    // the whole tested range n <= 4. The second is not claimed as a theorem but
+    // as a pattern to investigate, recorded under "Known follow-ups" in
+    // CHANGELOG.md.
     var grid: [MAX_GRID]IntVec = undefined;
     var buf: [64]sigs.Triple = undefined;
     const n = sigs.enumerateTriples(&buf, sigs.MAX_TOTAL);

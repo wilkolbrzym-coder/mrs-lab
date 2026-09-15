@@ -1,6 +1,6 @@
 .{
     .name = .mrs_lab,
-    .version = "0.1.1",
+    .version = "0.1.2",
     .fingerprint = 0x826cb3ac0989ce88, // package identity; changing it has trust implications
     .minimum_zig_version = "0.16.0",
     .dependencies = .{},

@@ -23,10 +23,37 @@
 //! and not all subalgebras. Consequence: in split algebras (e.g.
 //! Cl(1,0) ≅ R⊕R) there exist proper ideals spanned by idempotents (1 ± ω)/2
 //! which this engine **cannot see**, because idempotents are not blades. The
-//! blades. The engine does not hide this — it reports the result with its scope.
+//! engine does not hide this — it reports the result together with its scope.
 //!
-//! Exhaustive for n <= 4 (2^16 = 65 536 subsets). For n = 5 there are 2^32
-//! subsets, so enumeration refuses — explicitly, not silently.
+//! TWO ENUMERATION METHODS, and why the second one is not an approximation.
+//!
+//! `countsBrute` scans all 2^m blade subsets (m = 2^n). Exact, but its cost
+//! grows as 2^(2^n): n = 4 is 65 536 subsets, n = 5 is 2^32 = 4.3e9.
+//!
+//! `countsByClosure` enumerates the FIXED POINTS of the closure operator
+//! `S ↦ smallest closed superset of S`, by Ganter's next closure. The closed
+//! sets form a closure system — the intersection of two closed sets is closed,
+//! because a product of two elements of an intersection lies in both — so the
+//! fixed points are exactly the closed sets, each visited exactly once. The
+//! cost is proportional to the NUMBER OF CLOSED SETS, not to the number of
+//! subsets: at n = 5 that is 375 for a non-degenerate algebra and 31 242 668
+//! for `(0,0,5)`, both measured, against the 4.3e9 subsets a scan would touch.
+//!
+//! In a non-degenerate algebra the closed sets are exactly the GF(2)-linear
+//! subspaces of the blade masks — the product of two blades is ± a single
+//! blade `e_{A△B}`, so closure under the product IS closure under symmetric
+//! difference — and their number is `1 + Σ_k [n choose k]_2`, the Gaussian
+//! binomial sum: 68 at n = 4 and 375 at n = 5, which is what the table
+//! reports. A degenerate generator breaks that equivalence (a shared
+//! degenerate index makes the product vanish, so fewer products constrain the
+//! set) and the count is far larger.
+//!
+//! The two methods agree on every signature with n <= 4 — all 34 of them,
+//! asserted by test — which is what licenses using the second at n = 5.
+//!
+//! Enumeration stops at n = 5. Above that the masks no longer fit in a `u32`
+//! and the degenerate counts are already in the tens of millions; the refusal
+//! is explicit, not silent.
 
 const std = @import("std");
 const mrs = @import("mrs");
@@ -34,10 +61,26 @@ const cl = mrs.clifford;
 const exact = @import("exact.zig");
 const sigs = @import("signatures.zig");
 
-/// Largest number of blades at which subset enumeration is feasible.
+/// Largest number of blades at which the subset SCAN is feasible.
 pub const MAX_EXHAUSTIVE_BASIS: usize = 16;
 
+/// Largest number of blades the closure walk handles. The blade masks are held
+/// in a `u32` throughout this module and m = 2^n, so 32 blades is n = 5.
+pub const MAX_CLOSURE_BASIS: usize = 32;
+
 pub const EnumerateError = error{TooManyBlades};
+
+/// What P4 counts for one algebra: the closed blade-spanned subspaces, and the
+/// PROPER two-sided ideals among them.
+///
+/// Every blade-spanned two-sided ideal is closed — for a, b in an ideal the
+/// product a·b lies in it — so filtering the closed sets cannot lose an ideal.
+/// That is what lets the ideal count ride on the closure walk instead of
+/// scanning all 2^m subsets a second time.
+pub const Counts = struct {
+    closed: usize = 0,
+    proper_ideals: usize = 0,
+};
 
 pub const Info = struct {
     /// Subset of blades; bit i means the blade with mask i.
@@ -143,6 +186,13 @@ pub fn info(alg: cl.Algebra, set: u32) Info {
 /// Writes into `out` and returns the number found. `out` must be large
 /// enough; the remainder is silently dropped, so use `countClosed` for
 /// diagnostics.
+///
+/// This is the only entry point still limited to MAX_EXHAUSTIVE_BASIS, and the
+/// reason is memory rather than time: it MATERIALISES one `Info` per closed
+/// subspace, and `(0,0,5)` has 31 242 668 of them — around half a gigabyte.
+/// Counting does not need the list, which is why `countClosed` reaches n = 5
+/// and this does not. If you need the n = 5 list, walk it yourself from
+/// `countsByClosure` and consume each set instead of collecting it.
 pub fn enumerateClosed(alloc: std.mem.Allocator, alg: cl.Algebra) ![]Info {
     const m = alg.basisCount();
     if (m > MAX_EXHAUSTIVE_BASIS) return error.TooManyBlades;
@@ -160,33 +210,156 @@ pub fn enumerateClosed(alloc: std.mem.Allocator, alg: cl.Algebra) ![]Info {
     return list.toOwnedSlice(alloc);
 }
 
-/// Number of closed subsets (without allocating the result).
-pub fn countClosed(alg: cl.Algebra) EnumerateError!usize {
+/// Counts by scanning every subset. The ORACLE: it assumes nothing about the
+/// structure, so it is the reference the closure walk is tested against.
+pub fn countsBrute(alg: cl.Algebra) EnumerateError!Counts {
     const m = alg.basisCount();
     if (m > MAX_EXHAUSTIVE_BASIS) return error.TooManyBlades;
-    var count: usize = 0;
+    var c = Counts{};
     const total: u64 = @as(u64, 1) << @intCast(m);
     var s: u64 = 0;
     while (s < total) : (s += 1) {
-        if (isClosed(alg, @intCast(s))) count += 1;
+        const set: u32 = @intCast(s);
+        if (isClosed(alg, set)) c.closed += 1;
+        const dim: u5 = @intCast(@popCount(set));
+        if (dim == 0 or dim == m) continue; // the trivial ideals
+        if (isTwoSidedIdeal(alg, set)) c.proper_ideals += 1;
     }
-    return count;
+    return c;
+}
+
+/// Working tables for the closure walk, sized for MAX_CLOSURE_BASIS blades so
+/// they live on the stack and the walk allocates nothing.
+const ClosureTable = struct {
+    const ZERO_PRODUCT: u8 = 0xFF;
+
+    /// `prod[i*m + j]`: the mask of `e_i·e_j`, or ZERO_PRODUCT when the
+    /// product vanishes (a shared degenerate generator).
+    prod: [MAX_CLOSURE_BASIS * MAX_CLOSURE_BASIS]u8 = undefined,
+    /// `left[b]`: union of the masks of `a·b` over every blade `a` of the
+    /// algebra; `right[b]` the same for `b·a`.
+    left: [MAX_CLOSURE_BASIS]u32 = undefined,
+    right: [MAX_CLOSURE_BASIS]u32 = undefined,
+    m: usize = 0,
+
+    fn init(alg: cl.Algebra) ClosureTable {
+        const m = alg.basisCount();
+        var t = ClosureTable{ .m = m };
+        for (0..m) |i| {
+            t.left[i] = 0;
+            t.right[i] = 0;
+            for (0..m) |j| {
+                const bp = cl.bladeMul(alg, @intCast(i), @intCast(j));
+                t.prod[i * m + j] = if (bp.sign == 0) ZERO_PRODUCT else @intCast(bp.mask);
+            }
+        }
+        for (0..m) |b| {
+            for (0..m) |a| {
+                const ab = cl.bladeMul(alg, @intCast(a), @intCast(b));
+                if (ab.sign != 0) t.left[b] |= @as(u32, 1) << @intCast(ab.mask);
+                const ba = cl.bladeMul(alg, @intCast(b), @intCast(a));
+                if (ba.sign != 0) t.right[b] |= @as(u32, 1) << @intCast(ba.mask);
+            }
+        }
+        return t;
+    }
+
+    /// The smallest closed superset of `set`.
+    ///
+    /// The loop terminates after at most `m` rounds: a round either changes
+    /// nothing (done) or adds at least one blade, and there are `m` of them.
+    /// The `m` is therefore a proof of termination and not a budget — but the
+    /// loop is written so that the guard is visible rather than implied.
+    fn closure(self: *const ClosureTable, set: u32) u32 {
+        var cur = set;
+        var round: usize = 0;
+        while (round <= self.m) : (round += 1) {
+            var out = cur;
+            var ii = cur;
+            while (ii != 0) {
+                const i: usize = @ctz(ii);
+                ii &= ii - 1;
+                var jj = cur;
+                while (jj != 0) {
+                    const j: usize = @ctz(jj);
+                    jj &= jj - 1;
+                    const pm = self.prod[i * self.m + j];
+                    if (pm != ZERO_PRODUCT) out |= @as(u32, 1) << @intCast(pm);
+                }
+            }
+            if (out == cur) return cur;
+            cur = out;
+        }
+        return cur;
+    }
+
+    /// Is `set` a two-sided ideal? Requires `set` to be closed, which the walk
+    /// guarantees for every set it emits.
+    fn isIdeal(self: *const ClosureTable, set: u32) bool {
+        var needed: u32 = 0;
+        var ii = set;
+        while (ii != 0) {
+            const b: usize = @ctz(ii);
+            ii &= ii - 1;
+            needed |= self.left[b] | self.right[b];
+        }
+        return (needed & ~set) == 0;
+    }
+};
+
+/// Counts by walking the fixed points of the closure operator (Ganter's next
+/// closure) instead of scanning subsets. Same answer as `countsBrute` wherever
+/// the two can both run; see the module header for why that is exact.
+pub fn countsByClosure(alg: cl.Algebra) EnumerateError!Counts {
+    const m = alg.basisCount();
+    if (m > MAX_CLOSURE_BASIS) return error.TooManyBlades;
+    const t = ClosureTable.init(alg);
+    // The whole algebra is closed, so it is always the last set emitted.
+    const full: u32 = if (m == MAX_CLOSURE_BASIS) ~@as(u32, 0) else (@as(u32, 1) << @intCast(m)) - 1;
+
+    var c = Counts{};
+    var a = t.closure(0); // the empty set is closed
+    while (true) {
+        c.closed += 1;
+        const dim = @popCount(a);
+        if (dim != 0 and dim != m and t.isIdeal(a)) c.proper_ideals += 1;
+        if (a == full) return c;
+
+        // Next closure: the largest i outside `a` whose closure adds nothing
+        // below i. A closed set has exactly one successor, so the first such i
+        // found scanning downwards is it.
+        var next: ?u32 = null;
+        var i: usize = m;
+        while (i > 0) {
+            i -= 1;
+            const bit = @as(u32, 1) << @intCast(i);
+            if (a & bit != 0) continue;
+            const low: u32 = if (i == 0) 0 else (@as(u32, 1) << @intCast(i)) - 1;
+            const b = t.closure((a & low) | bit);
+            if ((b & ~a) & low == 0) {
+                next = b;
+                break;
+            }
+        }
+        a = next orelse return c; // unreachable: `full` is closed
+    }
+}
+
+/// Counts for one algebra, by whichever method reaches it.
+pub fn counts(alg: cl.Algebra) EnumerateError!Counts {
+    const m = alg.basisCount();
+    if (m <= MAX_EXHAUSTIVE_BASIS) return countsBrute(alg);
+    return countsByClosure(alg);
+}
+
+/// Number of closed subsets (without allocating the result).
+pub fn countClosed(alg: cl.Algebra) EnumerateError!usize {
+    return (try counts(alg)).closed;
 }
 
 /// Number of proper, nonzero, two-sided blade-spanned ideals.
 pub fn countProperIdeals(alg: cl.Algebra) EnumerateError!usize {
-    const m = alg.basisCount();
-    if (m > MAX_EXHAUSTIVE_BASIS) return error.TooManyBlades;
-    var count: usize = 0;
-    const total: u64 = @as(u64, 1) << @intCast(m);
-    var s: u64 = 1; // skip the empty set (the zero ideal)
-    while (s < total) : (s += 1) {
-        const set: u32 = @intCast(s);
-        const dim: u5 = @intCast(@popCount(set));
-        if (dim == 0 or dim == m) continue; // trivial
-        if (isTwoSidedIdeal(alg, set)) count += 1;
-    }
-    return count;
+    return (try counts(alg)).proper_ideals;
 }
 
 // ---------------------------------------------------------------------------
@@ -320,11 +493,81 @@ test "the trivial sets are always closed: {0} and the whole algebra" {
     try std.testing.expect(!info(alg, full).proper);
 }
 
-test "enumeration refuses for n = 5 instead of silently running for half an hour" {
-    const alg = try (sigs.SigBuf.build(.{ .p = 0, .q = 5 }, .mostly_minus)).algebra();
-    try std.testing.expectEqual(@as(usize, 32), alg.basisCount());
-    try std.testing.expectError(error.TooManyBlades, countClosed(alg));
-    try std.testing.expectError(error.TooManyBlades, countProperIdeals(alg));
+test "enumeration refuses above n = 5 instead of silently running for hours" {
+    // (0,6) has 64 blades, so a blade mask no longer fits in a u32.
+    const alg6 = try (sigs.SigBuf.build(.{ .p = 0, .q = 6 }, .mostly_minus)).algebra();
+    try std.testing.expectEqual(@as(usize, 64), alg6.basisCount());
+    try std.testing.expectError(error.TooManyBlades, counts(alg6));
+    try std.testing.expectError(error.TooManyBlades, countClosed(alg6));
+    try std.testing.expectError(error.TooManyBlades, countProperIdeals(alg6));
+
+    // (0,5) is INSIDE the walk's range and outside the scan's, which is the
+    // whole point of having two methods.
+    const alg5 = try (sigs.SigBuf.build(.{ .p = 0, .q = 5 }, .mostly_minus)).algebra();
+    try std.testing.expectEqual(@as(usize, 32), alg5.basisCount());
+    try std.testing.expectError(error.TooManyBlades, countsBrute(alg5));
+    _ = try countsByClosure(alg5);
+}
+
+test "PREDICTION: the closure walk reproduces the subset scan on every n <= 4" {
+    var buf: [64]sigs.Triple = undefined;
+    const n = sigs.enumerateTriples(&buf, 4);
+    try std.testing.expectEqual(@as(usize, 34), n);
+    for (0..n) |i| {
+        const alg = try (sigs.SigBuf.build(buf[i], .mostly_minus)).algebra();
+        const brute = try countsBrute(alg);
+        const walk = try countsByClosure(alg);
+        if (brute.closed != walk.closed or brute.proper_ideals != walk.proper_ideals) {
+            std.debug.print("closure walk disagrees on ({d},{d},{d}): walk {d}/{d}, scan {d}/{d}\n", .{
+                buf[i].p,            buf[i].q,
+                buf[i].r,            walk.closed,
+                walk.proper_ideals,  brute.closed,
+                brute.proper_ideals,
+            });
+            return error.TestUnexpectedResult;
+        }
+    }
+}
+
+test "PREDICTION: the closure walk carries P4 past n = 4" {
+    // r = 0: the closed sets are the blade-mask subspaces, 1 + Σ [n choose k]_2.
+    const r0 = [_]usize{ 0, 3, 6, 17, 68, 375 };
+    for (1..6) |dim| {
+        const alg = try (sigs.SigBuf.build(.{ .q = @intCast(dim) }, .mostly_minus)).algebra();
+        try std.testing.expectEqual(r0[dim], (try countsByClosure(alg)).closed);
+        // ... and none of them is a proper two-sided ideal
+        try std.testing.expectEqual(@as(usize, 0), (try countsByClosure(alg)).proper_ideals);
+    }
+    // The degenerate counts at n = 5, one per r. Every row of the committed
+    // table is checked here, but the four large ones only in ReleaseFast:
+    // together they cost about 50 seconds in Debug, which is the whole cost of
+    // the test suite, and Debug would be exercising the same code path the two
+    // small cases above already cover. ReleaseFast is the mode the engine is
+    // built and measured in, so that is where the numbers of the report are
+    // pinned.
+    const deg = [_]usize{ 135534, 733827, 3033464, 10716233, 31242668 };
+    const cheap_until = if (@import("builtin").mode == .ReleaseFast) deg.len else 2;
+    for (deg[0..cheap_until], 1..) |expected, r| {
+        const alg = try (sigs.SigBuf.build(.{ .p = 0, .q = @intCast(5 - r), .r = @intCast(r) }, .mostly_minus)).algebra();
+        try std.testing.expectEqual(expected, (try countsByClosure(alg)).closed);
+    }
+    // (2,3,0) — the signature the audit asked about first, and the reason this
+    // method exists at all.
+    const alg231 = try (sigs.SigBuf.build(.{ .p = 2, .q = 3 }, .mostly_minus)).algebra();
+    try std.testing.expectEqual(@as(usize, 375), (try countsByClosure(alg231)).closed);
+
+    // The audit's measured claim, now guarded: the blade-scoped lattice is
+    // blind to the time/space split, so the count depends on n and r and not
+    // on how the remaining dimensions are divided between time and space.
+    const splits = [_]sigs.Triple{
+        .{ .p = 1, .q = 4 }, .{ .p = 2, .q = 3 },
+        .{ .p = 3, .q = 2 }, .{ .p = 4, .q = 1 },
+        .{ .p = 5, .q = 0 },
+    };
+    for (splits) |t| {
+        const alg = try (sigs.SigBuf.build(t, .mostly_minus)).algebra();
+        try std.testing.expectEqual(@as(usize, 375), (try countsByClosure(alg)).closed);
+    }
 }
 
 test "enumeration is deterministic and agrees with the counter" {

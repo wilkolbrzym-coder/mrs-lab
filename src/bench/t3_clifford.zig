@@ -12,7 +12,7 @@
 //!
 //! B3 is the strongest and the fairest: it is exactly the same algorithm as
 //! MRS-LAB plus an unavoidable scan of the dense array to discover the sparsity.
-//! Conclusion (docs/REVIEW.md): the algorithm itself is not the property of
+//! Conclusion (`results/RESULTS.md`, T3): the algorithm itself is not the property of
 //! MRS-LAB. The property is that density is part of the TYPE, so the sparse path
 //! is chosen automatically and cannot be lost in a refactor — and the cost
 //! difference against B3 is exactly the 2^n scan.

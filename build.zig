@@ -111,17 +111,16 @@ pub fn build(b: *std.Build) void {
     check_cmd.addArgs(&.{ "bench", "--quick" });
     check_step.dependOn(&check_cmd.step);
 
-    const explore_step = b.step("explore", "Property table P2/P4 (p+q+r <= 4)");
+    const explore_step = b.step("explore", "Property table P2/P4 for every supported signature (p+q+r <= 5)");
     const explore_cmd = b.addRunArtifact(exe);
     explore_cmd.step.dependOn(b.getInstallStep());
     explore_cmd.addArg("explore");
     explore_step.dependOn(&explore_cmd.step);
 
-    const explore_full_step = b.step("explore-full", "Property table P2/P4 up to p+q+r <= 5 (slower)");
-    const explore_full_cmd = b.addRunArtifact(exe);
-    explore_full_cmd.step.dependOn(b.getInstallStep());
-    explore_full_cmd.addArgs(&.{ "explore", "--max", "5" });
-    explore_full_step.dependOn(&explore_full_cmd.step);
+    // There is no `explore-full` any more. It existed to reach p+q+r = 5 while
+    // the default stopped at 4; the default is now the whole supported range,
+    // so the step would be a second name for this one. The fast subset is
+    // `zig build run -- explore --max 4`, which also ends the table at n = 4.
 
     const bench_quick_step = b.step("bench-quick", "Short benchmark report");
     const bench_quick_cmd = b.addRunArtifact(exe);

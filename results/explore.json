@@ -1,5 +1,5 @@
 {
-  "max_total": 4,
+  "max_total": 5,
   "results": [
     {"p": 0, "q": 0, "r": 1, "n": 1, "p2a": true, "p2b": true, "p2c": true, "center_dim": 2, "subalgebras": 4, "proper_ideals": 1, "radical_index": 2},
     {"p": 0, "q": 1, "r": 0, "n": 1, "p2a": true, "p2b": true, "p2c": true, "center_dim": 2, "subalgebras": 3, "proper_ideals": 0, "radical_index": null},
@@ -34,6 +34,27 @@
     {"p": 2, "q": 2, "r": 0, "n": 4, "p2a": false, "p2b": false, "p2c": false, "center_dim": 1, "subalgebras": 68, "proper_ideals": 0, "radical_index": null},
     {"p": 3, "q": 0, "r": 1, "n": 4, "p2a": false, "p2b": false, "p2c": false, "center_dim": 1, "subalgebras": 654, "proper_ideals": 1, "radical_index": 2},
     {"p": 3, "q": 1, "r": 0, "n": 4, "p2a": false, "p2b": false, "p2c": false, "center_dim": 1, "subalgebras": 68, "proper_ideals": 0, "radical_index": null},
-    {"p": 4, "q": 0, "r": 0, "n": 4, "p2a": false, "p2b": false, "p2c": false, "center_dim": 1, "subalgebras": 68, "proper_ideals": 0, "radical_index": null}
+    {"p": 4, "q": 0, "r": 0, "n": 4, "p2a": false, "p2b": false, "p2c": false, "center_dim": 1, "subalgebras": 68, "proper_ideals": 0, "radical_index": null},
+    {"p": 0, "q": 0, "r": 5, "n": 5, "p2a": true, "p2b": false, "p2c": false, "center_dim": 17, "subalgebras": 31242668, "proper_ideals": 7579, "radical_index": 6},
+    {"p": 0, "q": 1, "r": 4, "n": 5, "p2a": true, "p2b": false, "p2c": false, "center_dim": 9, "subalgebras": 10716233, "proper_ideals": 166, "radical_index": 5},
+    {"p": 0, "q": 2, "r": 3, "n": 5, "p2a": true, "p2b": false, "p2c": false, "center_dim": 5, "subalgebras": 3033464, "proper_ideals": 18, "radical_index": 4},
+    {"p": 0, "q": 3, "r": 2, "n": 5, "p2a": false, "p2b": false, "p2c": false, "center_dim": 3, "subalgebras": 733827, "proper_ideals": 4, "radical_index": 3},
+    {"p": 0, "q": 4, "r": 1, "n": 5, "p2a": false, "p2b": false, "p2c": false, "center_dim": 2, "subalgebras": 135534, "proper_ideals": 1, "radical_index": 2},
+    {"p": 0, "q": 5, "r": 0, "n": 5, "p2a": false, "p2b": false, "p2c": false, "center_dim": 2, "subalgebras": 375, "proper_ideals": 0, "radical_index": null},
+    {"p": 1, "q": 0, "r": 4, "n": 5, "p2a": true, "p2b": false, "p2c": false, "center_dim": 9, "subalgebras": 10716233, "proper_ideals": 166, "radical_index": 5},
+    {"p": 1, "q": 1, "r": 3, "n": 5, "p2a": true, "p2b": false, "p2c": false, "center_dim": 5, "subalgebras": 3033464, "proper_ideals": 18, "radical_index": 4},
+    {"p": 1, "q": 2, "r": 2, "n": 5, "p2a": false, "p2b": false, "p2c": false, "center_dim": 3, "subalgebras": 733827, "proper_ideals": 4, "radical_index": 3},
+    {"p": 1, "q": 3, "r": 1, "n": 5, "p2a": false, "p2b": false, "p2c": false, "center_dim": 2, "subalgebras": 135534, "proper_ideals": 1, "radical_index": 2},
+    {"p": 1, "q": 4, "r": 0, "n": 5, "p2a": false, "p2b": false, "p2c": false, "center_dim": 2, "subalgebras": 375, "proper_ideals": 0, "radical_index": null},
+    {"p": 2, "q": 0, "r": 3, "n": 5, "p2a": true, "p2b": false, "p2c": false, "center_dim": 5, "subalgebras": 3033464, "proper_ideals": 18, "radical_index": 4},
+    {"p": 2, "q": 1, "r": 2, "n": 5, "p2a": false, "p2b": false, "p2c": false, "center_dim": 3, "subalgebras": 733827, "proper_ideals": 4, "radical_index": 3},
+    {"p": 2, "q": 2, "r": 1, "n": 5, "p2a": false, "p2b": false, "p2c": false, "center_dim": 2, "subalgebras": 135534, "proper_ideals": 1, "radical_index": 2},
+    {"p": 2, "q": 3, "r": 0, "n": 5, "p2a": false, "p2b": false, "p2c": false, "center_dim": 2, "subalgebras": 375, "proper_ideals": 0, "radical_index": null},
+    {"p": 3, "q": 0, "r": 2, "n": 5, "p2a": false, "p2b": false, "p2c": false, "center_dim": 3, "subalgebras": 733827, "proper_ideals": 4, "radical_index": 3},
+    {"p": 3, "q": 1, "r": 1, "n": 5, "p2a": false, "p2b": false, "p2c": false, "center_dim": 2, "subalgebras": 135534, "proper_ideals": 1, "radical_index": 2},
+    {"p": 3, "q": 2, "r": 0, "n": 5, "p2a": false, "p2b": false, "p2c": false, "center_dim": 2, "subalgebras": 375, "proper_ideals": 0, "radical_index": null},
+    {"p": 4, "q": 0, "r": 1, "n": 5, "p2a": false, "p2b": false, "p2c": false, "center_dim": 2, "subalgebras": 135534, "proper_ideals": 1, "radical_index": 2},
+    {"p": 4, "q": 1, "r": 0, "n": 5, "p2a": false, "p2b": false, "p2c": false, "center_dim": 2, "subalgebras": 375, "proper_ideals": 0, "radical_index": null},
+    {"p": 5, "q": 0, "r": 0, "n": 5, "p2a": false, "p2b": false, "p2c": false, "center_dim": 2, "subalgebras": 375, "proper_ideals": 0, "radical_index": null}
   ]
 }

@@ -1,8 +1,9 @@
 //! MRS-LAB :: public library interface
 //!
-//! The mathematical layer is described in docs/; the performance theses and
-//! their honest verdicts live in results/RESULTS.md, and the property engine
-//! table in results/EXPLORE.md.
+//! The mathematical layer and the exact boundary of what the engine decides are
+//! described in README.md; the performance theses and their honest verdicts
+//! live in results/RESULTS.md, and the property engine table in
+//! results/EXPLORE.md.
 
 pub const signature = @import("mrs/signature.zig");
 pub const form = @import("mrs/form.zig");

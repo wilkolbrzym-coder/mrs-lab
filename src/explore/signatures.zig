@@ -191,6 +191,23 @@ test "the convention changes neither the triple nor the roles" {
     }
 }
 
+test "a buffer that is too small is filled, not overrun" {
+    // The contract this pins down: `enumerateTriples` STOPS at the end of the
+    // buffer and returns what it wrote. A caller that sizes its buffer by
+    // MAX_TOTAL and then asks for more gets a truncated list, not a crash and
+    // not an error — which is why `report.zig` clamps its range before calling.
+    var small: [4]Triple = undefined;
+    try std.testing.expectEqual(@as(usize, 4), enumerateTriples(&small, MAX_TOTAL));
+    try std.testing.expectEqual(@as(usize, 4), small.len);
+    // ... and the first four are the ones the full run produces, in order.
+    var full: [64]Triple = undefined;
+    const n = enumerateTriples(&full, MAX_TOTAL);
+    try std.testing.expectEqual(tripleCount(MAX_TOTAL), n);
+    for (small, full[0..4]) |a, b| {
+        try std.testing.expect(a.eql(b));
+    }
+}
+
 test "a degenerate algebra rejects raising an index" {
     const sb = SigBuf.build(.{ .p = 2, .q = 1, .r = 1 }, .mostly_minus);
     const f = mrs.form.DiagonalForm{ .signature = sb.signature() };

@@ -28,7 +28,7 @@ const Z = mrs.split_complex.Z;
 const causal = mrs.causal;
 const cl = mrs.clifford;
 
-const VERSION = "MRS-LAB 0.1.1";
+const VERSION = "MRS-LAB 0.1.2";
 
 // ---------------------------------------------------------------------------
 // Input
@@ -38,8 +38,11 @@ const Options = struct {
     cmd: []const u8 = "demo",
     quick: bool = false,
     out: ?[]const u8 = null,
-    /// Upper bound on the p+q+r sum for the `explore` command.
-    max_total: u5 = 4,
+    /// Upper bound on the p+q+r sum for the `explore` command. The default is
+    /// MAX_TOTAL, i.e. everything the engine can decide, because P4 now covers
+    /// the whole range and a report that quietly stops short would be a scope
+    /// limit in the one place the project promises none.
+    max_total: u5 = 5,
 };
 
 fn parseArgs(args: []const []const u8) Options {
@@ -57,7 +60,7 @@ fn parseArgs(args: []const []const u8) Options {
         } else if (std.mem.eql(u8, a, "--max")) {
             i += 1;
             if (i < args.len) {
-                o.max_total = std.fmt.parseInt(u5, args[i], 10) catch 4;
+                o.max_total = std.fmt.parseInt(u5, args[i], 10) catch 5;
             }
         } else if (!std.mem.startsWith(u8, a, "--")) {
             o.cmd = a;
@@ -85,7 +88,7 @@ pub fn main(init: std.process.Init) !void {
     } else if (std.mem.eql(u8, opt.cmd, "explore")) {
         const eopts = explore_report.Options{
             .max_total = opt.max_total,
-            .exhaustive_max_n = 4,
+            .exhaustive_max_n = 5,
             .run_p4 = true,
         };
         var aw = Io.Writer.Allocating.init(arena);
@@ -327,7 +330,7 @@ fn demo(w: *Io.Writer) !void {
             "coefficients ({d:.4}, {d:.4}).\n\n", .{ theta, @cos(theta), @sin(theta) });
     }
 
-    try w.writeAll("---\n\nFull audit of the assumptions and corrections in the original project: `docs/PLAN-MRS-0.1.md`.\n");
+    try w.writeAll("---\n\nWhat changed, and what is still open: `CHANGELOG.md`.\n");
     try w.writeAll("Measurement results: `results/RESULTS.md`. Property table: `results/EXPLORE.md`.\n");
 }
 

@@ -7,6 +7,97 @@ All notable changes to MRS-LAB are recorded here. The format follows
 Two rules from the README apply to every entry below: a scope limit is a scope
 limit and not a negative result, and "not shown" never means "impossible".
 
+## [0.1.2] — 2026-09-15
+
+P4 reaches dimension 5, by a change of enumeration method rather than by
+waiting longer. Everything below is reproducible: `zig build test` (300 tests,
+Debug + ReleaseSafe + ReleaseFast), `zig build verify` (16/16),
+`zig build explore` (1 m 41 s on the machine that produced the committed table,
+and machine dependent like every other timing here; `explore --max 4` gives the
+previous 34-row table in under a second).
+
+### Added
+
+- **The closure walk: P4 now decides every signature the engine supports.**
+  Until 0.1.1 the subalgebra question stopped at `p+q+r = 4`, because
+  `countsBrute` scans all `2^(2^n)` blade subsets and `n = 5` means 4 294 967 296
+  of them. `countsByClosure` walks the FIXED POINTS of the closure operator
+  `S ↦ smallest closed superset of S` (Ganter's next closure) and visits each
+  closed subspace exactly once, so its cost is the number of closed subspaces:
+  at `n = 5` that is 375 for a non-degenerate algebra and 31 242 668 for
+  `(0,0,5)`. `(2,3,0)` — the signature the 0.1.1 audit asked about first and had
+  to leave unanswered — is now a decided row: 375 closed blade-spanned
+  subalgebras, none of them a proper two-sided ideal.
+- `subalgebra.counts` returns both counts in one pass, and `Counts` carries
+  them. The report used to call `countClosed` and `countProperIdeals`
+  separately, and at `n = 5` that would have doubled an already expensive walk.
+  Keying on the fixed point is sound because every blade-spanned two-sided
+  ideal is closed: for `a, b` in an ideal the product `a·b` lies in it.
+- Three tests, one per claim:
+  - `the closure walk reproduces the subset scan on every n <= 4` — all 34
+    signatures, both counts, walk versus scan. This is the licence for using
+    the walk where the scan cannot go.
+  - `the closure walk carries P4 past n = 4` — the `r = 0` column
+    `3, 6, 17, 68, 375` and the five degenerate counts at `n = 5`.
+  - `a buffer that is too small is filled, not overrun` — pins the
+    `enumerateTriples` contract and, with it, why the report clamps its range.
+
+### Changed
+
+- **The report's default range is the whole supported range.** `zig build
+  explore` now writes the 55-row table for `p+q+r <= 5`. Reaching `n = 5` while
+  the default stopped at 4 was a scope limit in the one place the project
+  promises none. Cost, measured: 1 minute 41 seconds, almost all of it in the
+  three most degenerate rows and doubled by the report being rendered twice
+  (markdown and JSON).
+- **`explore-full` is gone.** It existed only to reach `p+q+r = 5` while the
+  default stopped at 4; with the default at 5 it would have been a second name
+  for the same command. `zig build run -- explore --max 4` is the fast subset.
+- The report's method section now describes both P4 methods and states the
+  scope of the blade enumeration separately from the procedure, because the
+  blade scope and the dimension limit are different limits and were sitting in
+  one sentence.
+
+### Fixed
+
+- **Three Polish strings, one of them in the published report.** The
+  English-only pass of b8af845 claimed no Polish text remained in `src/`; that
+  was false. `src/mrs/signature.zig` (a comment), `src/bench/t4_derivative.zig`
+  (a table row label, which reached `results/RESULTS.md` as
+  `MRS: liczby dualne`) and the generated report itself. None of the three
+  contains a diacritic, which is why both the `pl_PL` dictionary scan and the
+  hand read walked past them. The 0.1.1 entry is corrected rather than left
+  standing.
+- **Eight references to a `docs/` directory that is not in the repository** —
+  eight call sites, including one printed into the user-visible `demo` output
+  (`docs/PLAN-MRS-0.1.md`). They now point at files that exist: `README.md`,
+  `CHANGELOG.md`, `results/RESULTS.md`, and `mrs/causal.zig` for the theorem
+  numbers.
+- Three lines truncated by the translation pass, each of which had left its own
+  fragment duplicated behind it (`The blades.`, `thesis T3 (docs/07).`, `a
+  theorem: it is a pattern to investigate`).
+- **A range wider than the engine supports used to truncate the table
+  silently.** `enumerateTriples` stops at the end of the buffer it is given, so
+  `explore --max 6` printed 55 rows under a heading claiming `p+q+r from 1 to
+  6`. The range is now clamped to `MAX_TOTAL` before it is used, so the heading
+  and the rows cannot disagree.
+
+### Known follow-ups
+
+- The report computes the sweep twice — once for the markdown table, once for
+  the JSON. At range 4 that is invisible; at range 5 it is about half of the
+  1.5 minutes. Rendering both from one pass is a contained refactor that was
+  not worth taking on in the same change as the enumeration.
+- `enumerateClosed` still refuses above `n = 4`, because it materialises one
+  `Info` per closed subspace and `(0,0,5)` has 31 242 668 of them. Counting does
+  not need the list; a caller who needs the `n = 5` list has to consume the sets
+  as the walk produces them. The limitation is now stated at the function.
+- The four largest `n = 5` assertions run only in ReleaseFast, because together
+  they cost about 50 seconds in Debug — the entire cost of the suite — while
+  walking exactly the code path the two small cases already cover.
+- P1 remains unimplemented as a classification: "which subgroups `H ⊆ O(p,q)`
+  admit an invariant pointed convex cone" still has no LP layer behind it.
+
 ## [0.1.1] — 2026-09-15
 
 Audit of the multi-time signatures (p >= 2), i.e. exactly the region where

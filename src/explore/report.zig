@@ -11,10 +11,14 @@
 //!      something it writes `—` and states why, instead of staying silent or
 //!      guessing.
 //!
-//! By default the report goes up to max_total = 4, because that is where P4 is
-//! exhaustive (2^16 subsets). Going to n = 5 is possible
-//! (`Options.max_total = 5`) but costs roughly 10^9 operations per signature
-//! for P2, so it is a deliberate user choice, not a default.
+//! By default the report goes up to max_total = 4 and P4 covers every row of
+//! it, which costs under a second. `Options.max_total = 5` adds the 21
+//! signatures of dimension 5 — including `(2,3,0)`, the one the audit asked
+//! about first — and P4 still covers all of them, because the closure walk in
+//! `subalgebra.zig` does not care how many subsets there are. That sweep costs
+//! about half a minute, almost all of it in the two most degenerate rows
+//! (`(0,0,5)` alone is 31 242 668 closed subspaces), so it stays a deliberate
+//! user choice rather than a default.
 
 const std = @import("std");
 const mrs = @import("mrs");
@@ -27,9 +31,11 @@ const nrm = @import("norm_mult.zig");
 pub const Options = struct {
     /// Largest p+q+r sum included in the report.
     max_total: u5 = 4,
-    /// Dimension above which P4 stops being exhaustive (2^n > 16).
-    exhaustive_max_n: usize = 4,
-    /// Whether to run P4 (cost 2^(2^n) per signature).
+    /// Dimension above which P4 stops being decided (2^n > 32).
+    exhaustive_max_n: usize = 5,
+    /// Whether to run P4 at all. The cost is the number of closed subspaces,
+    /// which ranges from 375 for a non-degenerate n = 5 algebra to 31 242 668
+    /// for `(0,0,5)` — measured, not bounded by the subset count.
     run_p4: bool = true,
 };
 
@@ -93,14 +99,15 @@ pub fn evalTriple(
         row.radical_ideal_index = subalg.nilpotencyIndex(alg, I, 8);
     }
     if (opts.run_p4 and t.n() <= opts.exhaustive_max_n) {
-        row.subalgebra_count = try subalg.countClosed(alg);
-        row.proper_ideal_count = try subalg.countProperIdeals(alg);
+        const c = try subalg.counts(alg);
+        row.subalgebra_count = c.closed;
+        row.proper_ideal_count = c.proper_ideals;
     }
 
     // --- note: scope is part of the result -------------------------------
     row.note = blk: {
         if (opts.run_p4 and t.n() > opts.exhaustive_max_n) {
-            break :blk "P4 out of range: 2^n > 16";
+            break :blk "P4 out of range: n > 5";
         }
         if (t.isDegenerate()) {
             if (row.radical_ideal_index) |idx| {
@@ -138,22 +145,33 @@ pub fn writeMarkdown(
     const gbuf = try alloc.create([nrm.MAX_GRID]exact.IntVec);
     defer alloc.destroy(gbuf);
 
+    // The row buffer is sized by MAX_TOTAL and `enumerateTriples` fills what
+    // fits, so a larger `max_total` would silently produce a truncated table
+    // under a heading claiming the larger range — a scope limit presented as
+    // something else. Clamping keeps the heading and the rows in agreement.
+    const max_total = @min(opts.max_total, sigs.MAX_TOTAL);
     var triples: [sigs.tripleCount(sigs.MAX_TOTAL)]sigs.Triple = undefined;
-    const n = sigs.enumerateTriples(&triples, opts.max_total);
+    const n = sigs.enumerateTriples(&triples, max_total);
 
     try w.writeAll("# MRS-LAB — property engine results\n\n");
     try w.print("Scope: all signatures (p,q,r) with p+q+r from 1 to {d}. " ++
         "Convention: (+,−,−,…); the P2 results are convention independent " ++
-        "(checked by test).\n\n", .{opts.max_total});
+        "(checked by test).\n\n", .{max_total});
     try w.writeAll("## Method — why these are decisions, not evidence\n\n");
     try w.writeAll("- **P2a/P2b/P2c**: for fixed y the identity is a **quadratic function** " ++
         "of x, and symmetrically, and a quadratic function (including a linear term) is " ++
         "determined by its values on {0} ∪ {e_i} ∪ {e_i+e_j}. Checking the Cartesian " ++
         "product of that set **decides** the identity for all real x,y. The arithmetic is " ++
         "exact integers — no tolerance, no probability.\n");
-    try w.writeAll("- **P4**: exhaustive over all subspaces spanned by blades. That is a " ++
-        "sublattice of all subalgebras — ideals spanned by idempotents (e.g. in " ++
-        "Cl(1,0) ≅ R⊕R) are outside this scope and are not visible here.\n");
+    try w.writeAll("- **P4**: exhaustive over all subspaces spanned by blades. The " ++
+        "enumeration walks the fixed points of the closure operator rather than " ++
+        "scanning all 2^(2^n) subsets, so the cost is the NUMBER OF CLOSED SUBSPACES " ++
+        "and the answer is the same one a scan would give — the two agree on every " ++
+        "signature with n <= 4, as a test asserts. That is what carries the question " ++
+        "to n = 5, where a scan would have to touch 2^32 subsets.\n" ++
+        "- **P4 scope**: blade-spanned subspaces are a sublattice of all subalgebras — " ++
+        "ideals spanned by idempotents (e.g. in Cl(1,0) ≅ R⊕R) are outside this scope " ++
+        "and are not visible here.\n");
     try w.writeAll("- **Radical ideal**: the blades containing a degenerate generator. " ++
         "The index is the smallest k with I^k = 0.\n\n");
 
@@ -201,7 +219,7 @@ pub fn writeMarkdown(
     try w.print("- P2c holds in {d}, fails in {d}\n", .{ sum.p2c_true, sum.p2c_false });
     try w.print("- degenerate signatures (r>0): {d}\n", .{sum.degenerate});
     try w.print("- Lorentzian signatures: {d}\n", .{sum.lorentzian});
-    try w.print("- P4 rows computed exhaustively: {d}, out of range: {d}\n", .{
+    try w.print("- P4 rows decided: {d}, out of range: {d}\n", .{
         sum.p4_rows, sum.p4_out_of_range,
     });
     return sum;
@@ -215,12 +233,13 @@ pub fn writeJson(
     const gbuf = try alloc.create([nrm.MAX_GRID]exact.IntVec);
     defer alloc.destroy(gbuf);
 
+    const max_total = @min(opts.max_total, sigs.MAX_TOTAL);
     var triples: [sigs.tripleCount(sigs.MAX_TOTAL)]sigs.Triple = undefined;
-    const n = sigs.enumerateTriples(&triples, opts.max_total);
+    const n = sigs.enumerateTriples(&triples, max_total);
 
     var sum = Summary{};
     try w.writeAll("{\n");
-    try w.print("  \"max_total\": {d},\n", .{opts.max_total});
+    try w.print("  \"max_total\": {d},\n", .{max_total});
     try w.writeAll("  \"results\": [\n");
 
     for (0..n) |i| {
@@ -316,11 +335,21 @@ test "the P2a boundary in the report falls exactly at n = 3" {
 
 test "P4 out of range is stated explicitly, not guessed" {
     const alloc = std.testing.allocator;
-    const opts = Options{ .max_total = 5, .exhaustive_max_n = 4 };
+    const opts = Options{ .max_total = 5 };
     const gbuf = try alloc.create([nrm.MAX_GRID]exact.IntVec);
     defer alloc.destroy(gbuf);
 
-    const row = try evalTriple(alloc, .{ .p = 0, .q = 5 }, .mostly_minus, gbuf, opts);
-    try std.testing.expectEqual(@as(?usize, null), row.subalgebra_count);
-    try std.testing.expectEqualStrings("P4 out of range: 2^n > 16", row.note);
+    // n = 5 is decided now, and (2,3,0) is the row the audit asked about first.
+    const inside = try evalTriple(alloc, .{ .p = 2, .q = 3 }, .mostly_minus, gbuf, opts);
+    try std.testing.expectEqual(@as(?usize, 375), inside.subalgebra_count);
+    try std.testing.expectEqual(@as(?usize, 0), inside.proper_ideal_count);
+
+    // A range narrower than the engine's still says so rather than printing "—"
+    // in silence. This branch cannot be reached by any report the CLI can
+    // generate (max_total <= 5 and the default limit is 5), which is exactly
+    // why it is worth a test rather than a comment.
+    const narrow = Options{ .max_total = 5, .exhaustive_max_n = 4 };
+    const outside = try evalTriple(alloc, .{ .p = 2, .q = 3 }, .mostly_minus, gbuf, narrow);
+    try std.testing.expectEqual(@as(?usize, null), outside.subalgebra_count);
+    try std.testing.expectEqualStrings("P4 out of range: n > 5", outside.note);
 }

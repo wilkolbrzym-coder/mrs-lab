@@ -9,7 +9,7 @@
 //! the fast path. Any competent engineer who knows their metric is diagonal
 //! writes that code.
 //!
-//! Verdict of the measurement (docs/07): there is NO asymptotic advantage
+//! Verdict of the measurement (`results/RESULTS.md`, T1): there is NO asymptotic advantage
 //! if the baseline may inspect its data once. The advantage of MRS-LAB is that
 //! this knowledge lives in the type, so it can neither be lost nor cost a branch
 //! in the hot loop. We say so plainly instead of inflating the result by

@@ -13,9 +13,54 @@ byte for byte.
 
 **Repository:** <https://github.com/wilkolbrzym-coder/mrs-lab>
 
-**Status:** 0.1.1. The engine decides questions P2 and P4 below for every
-signature with `p+q+r <= 4` in about 0.4 s. P1 is partially decided, P3 is
+**Status:** 0.1.2. The engine decides questions P2 and P4 below for every
+signature with `p+q+r <= 5` — all 55 of them. P1 is partially decided, P3 is
 specified but not implemented.
+
+## What's new in 0.1.2
+
+**P4 reached dimension 5, which it could not before.** Until 0.1.1 the
+subalgebra question stopped at `p+q+r = 4`, because the enumeration scanned all
+`2^(2^n)` blade subsets — 4 294 967 296 of them at `n = 5`, so the engine
+refused rather than running for hours. It now walks the **fixed points of the
+closure operator** (Ganter's next closure), one pass per closed subspace, so the
+cost is the number of *closed subspaces* and not the number of subsets: at
+`n = 5` that is **375** for a non-degenerate algebra and **31 242 668** for
+`(0,0,5)`, both measured.
+
+That is a change of method, so the old one is kept as the reference rather than
+deleted: `countsBrute` still scans every subset, and a test asserts the two
+agree on **all 34 signatures with `p+q+r <= 4`**. That agreement is what
+licenses the walk where the scan cannot go — not an argument about the walk
+being clever.
+
+`(2,3,0)` — the signature the multi-time audit asked about first and had to
+leave unanswered — is now a row of the table: **375** closed blade-spanned
+subalgebras, none of them a proper two-sided ideal (the r = 0 rule from the
+table below, holding at a dimension where it used to be out of reach).
+
+Two other things moved with it:
+
+- the report's default range is now the whole supported range, so the
+  `explore-full` step is gone — it would have been a second name for the default;
+- the enum of closed subspaces at `r = 0` now has a closed form. They are
+  exactly the GF(2)-linear subspaces of the blade masks, so their number is
+  `1 + Σ_k [n choose k]_2` — 68 at `n = 4`, 375 at `n = 5`. This is stated in
+  the source as the reason the counts are what they are.
+
+### Also fixed in 0.1.2
+
+- **Three Polish strings survived the English-only pass and are now translated:**
+  `src/mrs/signature.zig`, `src/bench/t4_derivative.zig`, and one that reached
+  the published `results/RESULTS.md` as a table row label (`MRS: liczby
+  dualne`). They carry no diacritics, which is why both the dictionary scan and
+  the hand read in 0.1.1 walked past them. The 0.1.1 changelog entry claimed no
+  Polish text remained in `src/`; that entry is corrected.
+- **Eight references to a `docs/` directory that does not exist** — including one
+  printed into the `demo` output — now point at files that are actually in the
+  repository (`README.md`, `CHANGELOG.md`, `results/RESULTS.md`).
+- Three lines truncated by the translation pass, which had left a duplicated
+  fragment behind them.
 
 ---
 
@@ -29,7 +74,7 @@ work, and the engine says so rather than guessing.
 | question | scope | method |
 |---|---|---|
 | **P2** norm multiplicativity, `N(xy) = N(x)N(y)` | every signature with `p+q+r <= 5` | **decision procedure**: exact integer arithmetic, no sampling, no tolerance (see below) |
-| **P4** closed subalgebras, two-sided ideals, the centre, the nilpotency index of the radical ideal | every signature with `p+q+r <= 4` | **exhaustive**: all `2^(2^n) <= 65 536` blade subsets |
+| **P4** closed subalgebras, two-sided ideals, the centre, the nilpotency index of the radical ideal | every signature with `p+q+r <= 5` | **exhaustive**, by two methods that are asserted to agree: all `2^(2^n)` blade subsets up to `n = 4`, and the closure-operator walk above that |
 | **P1** is the causal order a partial order? | verified on five signatures | randomised witnesses plus a constructive counterexample |
 | both sign conventions `(+,-,-,-)` and `(-,+,+,+)` | all of the above | algebraic results are convention invariant, and that invariance is itself tested |
 | exact reproducibility | all reports | byte-identical output between runs |
@@ -40,7 +85,7 @@ work, and the engine says so rather than guessing.
 | limitation | why |
 |---|---|
 | **P4 is limited to subspaces spanned by blades** | the enumeration covers subspaces spanned by blade subsets — a sublattice of all subalgebras. Split algebras such as `Cl(1,0) ≅ R⊕R` have proper ideals spanned by the idempotents `(1 ± ω)/2`, and the engine **cannot see them**, because idempotents are not blades. This is a scope limit, not a negative result. |
-| **P4 above `p+q+r = 4`** | for `n = 5` there are `2^32` subsets. Enumeration refuses explicitly (`error.TooManyBlades`) instead of running silently for hours. |
+| **P4 above `p+q+r = 5`** | the walk holds blade masks in a `u32`, and `n = 6` would need 64 of them. Refuses explicitly (`error.TooManyBlades`) instead of wrapping around silently. |
 | **the Hurwitz bound of 8 cannot be reproduced in full** | the engine handles Clifford algebras, which are associative. Dimensions 1, 2 and 4 are covered; dimension 8 in this family is `Cl(0,3) ≅ H⊕H`, **not** the octonions, which are not a Clifford algebra. The question "does any multiplication with a multiplicative norm exist" is therefore outside the tool. |
 | **P1 as a classification** | "which subgroups `H ⊆ O(p,q)` admit an invariant pointed convex cone" is specified and computable by linear programming over the rationals, but **not implemented**. What is implemented is the partial-order test for a given signature. |
 | **P3, conserved positive-definite energy** | specified, not implemented; it needs symbolic reasoning, not enumeration. |
@@ -70,7 +115,7 @@ the output.
 
 ### What the engine found
 
-Sweep over all 34 signatures with `p+q+r <= 4` (`zig build explore`):
+Sweep over all 55 signatures with `p+q+r <= 5` (`zig build explore`):
 
 | result | statement | status |
 |---|---|---|
@@ -79,7 +124,7 @@ Sweep over all 34 signatures with `p+q+r <= 4` (`zig build explore`):
 | **P2c rule** | `z·z̄` lands in the centre **iff `2^n <= 8`** | witness at `n = 4`: `e01 + e23` in `Cl(1,3)` yields `−2·e0123` |
 | **Radical ideal** | the ideal spanned by blades containing a degenerate generator is nilpotent with index **exactly `r+1`**; `I² = 0` only when `r = 1` | not found in the literature while writing this |
 | **P2b ≡ P2c** | the two agree across the whole tested range | recorded as an **unproven pattern**, not a theorem — an open question |
-| subalgebra counts | e.g. 68 closed blade-spanned subalgebras for `Cl(1,3)`, 9238 for `(0,0,4)` | complete tables, rarely published |
+| subalgebra counts | e.g. 68 closed blade-spanned subalgebras for `Cl(1,3)`, 9238 for `(0,0,4)`, and at `n = 5`: 375 for any `r = 0` signature, 31 242 668 for `(0,0,5)` | complete tables, rarely published. The `r = 0` count has a closed form: `1 + Σ_k [n choose k]_2` |
 
 ### Honest performance verdict
 
@@ -120,8 +165,8 @@ ziglang.org/download, unpack it anywhere and add that directory to `PATH`.
 
 ```bash
 zig build test          # all tests: Debug + ReleaseSafe + ReleaseFast
-zig build explore       # property table P2/P4 for every signature, p+q+r <= 4
-zig build explore-full  # same, up to p+q+r <= 5 (slower)
+zig build explore       # property table P2/P4, every signature, p+q+r <= 5 (~1.5 min)
+zig build run -- explore --max 4   # the same table cut at n = 4, about a second
 zig build bench         # performance theses T1-T4 -> results/RESULTS.md
 zig build bench-check   # short benchmark run built ReleaseSafe (catches UB)
 zig build demo          # mathematical walkthrough, printed to stdout
@@ -226,10 +271,11 @@ range. Requirements, taken from the method used by P2 and P4:
 3. a failure must produce a witness — a signature, a vector, a matrix;
 4. the row must be reproducible by `zig build test`.
 
-Raising the range beyond `p+q+r = 4` means raising `MAX_TOTAL` (and `MAX_DIM`
-for the cached sign vector); the dense coefficient arrays and the subset
-enumeration grow as `2^n` and as `2^(2^n)` respectively, so `n = 5` for P4 is out
-of reach by construction, not by tuning.
+Raising the range beyond `p+q+r = 5` means raising `MAX_TOTAL` (and `MAX_DIM`
+for the cached sign vector). That is a real ceiling and not a tuning knob: the
+dense coefficient arrays grow as `2^n`, and the blade masks this module uses
+are `u32`, so `n = 6` would need both wider masks and 64 blades per
+multivector.
 
 ---
 

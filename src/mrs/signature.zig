@@ -91,7 +91,7 @@ pub const Signature = struct {
 
     /// Lorentzian = exactly one temporal dimension and no radical.
     /// This is the condition under which the causal relation is transitive
-    /// (Theorem 5.1 in docs/05).
+    /// (Theorem 5.1 in `mrs/causal.zig`).
     pub fn isLorentzian(self: Signature) bool {
         return self.p() == 1 and self.isNondegenerate();
     }
@@ -134,8 +134,9 @@ pub const minkowski_3_1_flipped: Signature = .{
 /// Minkowski 1+1 — the arena of the split-complex algebra.
 pub const minkowski_1_1: Signature = .{ .roles = &.{ t, s } };
 
-/// Signature (2,1): two times, one space. The transitivity witness.
-/// relacji przyczynowej (docs/05).
+/// Signature (2,1): two times, one space. The transitivity witness of the
+/// causal relation — three points `u ⪯ w ⪯ v` with `u ⋠ v`, built in
+/// `mrs/causal.zig :: canonicalWitness`.
 pub const two_times_2_1: Signature = .{ .roles = &.{ t, t, s } };
 
 /// (2,1,1) — with a degenerate dimension. The cone is not proper and the form

@@ -18,8 +18,8 @@
 //!
 //! Asymptotics of a multivector: a dense multivector has 2^n coefficients, so
 //! a naive product costs 4^n. The product of multivectors with k nonzero
-//! coefficients costs k² (up to the cost of merging), and that is thesis T3.
-//! thesis T3 (docs/07).
+//! coefficients costs k² (up to the cost of merging), and that is thesis T3,
+//! measured in `results/RESULTS.md`.
 
 const std = @import("std");
 const sig = @import("signature.zig");
