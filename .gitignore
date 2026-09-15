@@ -1,0 +1,7 @@
+# Zig build artifacts
+.zig-cache/
+zig-out/
+
+# Generated result files are committed on purpose (results/), but keep local
+# scratch output out of the repository.
+*.tmp
