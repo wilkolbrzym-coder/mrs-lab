@@ -4,7 +4,7 @@
 //! about a metric matrix. Two things follow:
 //!
 //!   1. The shape of the quadratic form is known statically (diagonal), so
-//!      ewaluacja `g(v,v)` jest O(n), a nie O(n^2).
+//!      evaluation `g(v,v)` is O(n), not O(n^2).
 //!   2. The sign convention (`time_sign`) is an explicit parameter, so the same
 //!      mathematical object can be described in (+,-,-,-) and (-,+,+,+) without
 //!      renaming theorems.
@@ -77,7 +77,7 @@ pub const Signature = struct {
         return self.count(.degenerate);
     }
 
-    /// Znak i-tego wektora bazowego: +1, −1 albo 0.
+    /// Sign of the i-th basis vector: +1, −1 or 0.
     pub fn signAt(self: Signature, i: usize) f64 {
         return switch (self.roles[i]) {
             .temporal => self.time_sign.f(),
@@ -167,7 +167,7 @@ test "liczenie (p,q,r)" {
     try std.testing.expectEqual(@as(usize, 0), euclidean_4.p());
 }
 
-test "konwencja znaku nie zmienia roli wymiaru" {
+test "the sign convention does not change the role of a dimension" {
     // The same vector under two conventions: the form sign flips, the classification does not
     // (czasowy/przestrzenny) pozostaje ta sama.
     const mm = minkowski_3_1.signAt(0);

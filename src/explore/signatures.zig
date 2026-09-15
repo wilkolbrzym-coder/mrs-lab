@@ -1,24 +1,24 @@
-//! MRS-0.1 :: enumerator sygnatur (warstwa bazowa pytań P1–P4)
+//! MRS-LAB :: signature enumerator (base layer for questions P2 and P4)
 //!
-//! Pytania P2 i P4 zależą wyłącznie od trójki (p,q,r), a nie od kolejności ról
-//! w wektorze. Dlatego enumerujemy TRÓJKI, a sygnatury budujemy z nich
-//! w ustalonej kolejności kanonicznej: najpierw wymiary czasowe, potem
+//! Questions P2 and P4 depend only on the triple (p,q,r), not on the order of
+//! the roles in the vector. So we enumerate TRIPLES and build signatures from
+//! them in a fixed canonical order: temporal dimensions first, then spatial,
 //! przestrzenne, potem zdegenerowane.
 //!
-//! Kolejność jest częścią kontraktu: raport musi być identyczny między
-//! uruchomieniami, inaczej nie da się go porównywać ani testować.
+//! The order is part of the contract: the report must be identical between
+//! runs, otherwise it cannot be compared or tested.
 //!
-//! Bufor `SigBuf` trzyma role w tablicy o stałym rozmiarze — dzięki temu
-//! sygnatura nie wymaga alokacji i nie może wyciekać ani się przesunąć.
+//! `SigBuf` keeps the roles in a fixed-size array, so a signature needs no
+//! allocation and cannot leak or be moved.
 
 const std = @import("std");
 const mrs = @import("mrs");
 const sig = mrs.signature;
 
-/// Największy wymiar obsługiwany przez wyrocznię wyczerpującą.
-/// 2^5 = 32 blaty; dla n = 5 podzbiory blatów są już nieprzeliczalne
-/// (2^32), więc enumeracja podalgebr jest ograniczona do n ≤ 4 (patrz
-/// `subalgebra.zig`). Pytania o normę i centrum działają do n = 5.
+/// Largest dimension the exhaustive oracle supports.
+/// 2^5 = 32 blades; for n = 5 the blade subsets are already uncountable
+/// (2^32), so subalgebra enumeration is limited to n <= 4 (see
+/// `subalgebra.zig`). The norm and centre questions work up to n = 5.
 pub const MAX_TOTAL: u5 = 5;
 pub const MAX_DIM: usize = 8;
 
@@ -31,8 +31,8 @@ pub const Triple = struct {
         return @as(usize, self.p) + @as(usize, self.q) + @as(usize, self.r);
     }
 
-    /// Sygnatura lorentzowska: dokładnie jeden wymiar czasowy, bez jądra.
-    /// To jest dokładnie warunek na porządek częściowy (Twierdzenie 5.2).
+    /// Lorentzian signature: exactly one temporal dimension, no radical.
+    /// This is precisely the condition for a partial order (Theorem 5.2).
     pub fn isLorentzian(self: Triple) bool {
         return self.p == 1 and self.r == 0;
     }
@@ -50,7 +50,7 @@ pub const Triple = struct {
     }
 };
 
-/// Sygnatura bez alokacji: role w tablicy stałego rozmiaru.
+/// Allocation-free signature: roles in a fixed-size array.
 pub const SigBuf = struct {
     roles: [MAX_DIM]sig.Role = undefined,
     len: usize = 0,
@@ -87,7 +87,7 @@ pub const SigBuf = struct {
     }
 };
 
-/// Liczba trójek o sumie od 1 do `max_total`.
+/// Number of triples with sum from 1 to `max_total`.
 pub fn tripleCount(max_total: u5) usize {
     var total: usize = 0;
     var n: u5 = 1;
@@ -100,9 +100,9 @@ pub fn tripleCount(max_total: u5) usize {
     return total;
 }
 
-/// Wypełnia `out` wszystkimi trójkami o sumie 1..max_total.
-/// Porządek jest deterministyczny: rosnące n, potem p, potem q, potem r.
-/// Zwraca liczbę zapisanych elementów; jeśli `out` jest za mały, przerywa.
+/// Fills `out` with all triples of sum 1..max_total.
+/// The order is deterministic: increasing n, then p, then q, then r.
+/// Returns the number written; if `out` is too small it stops early.
 pub fn enumerateTriples(out: []Triple, max_total: u5) usize {
     var k: usize = 0;
     var n: u5 = 1;
@@ -125,8 +125,8 @@ pub fn enumerateTriples(out: []Triple, max_total: u5) usize {
 // Testy
 // ---------------------------------------------------------------------------
 
-test "liczba trójek zgadza się z symbolem Newtona" {
-    // trójki o sumie <= max, bez (0,0,0): C(max+3,3) - 1
+test "the number of triples matches the binomial coefficient" {
+    // triples of sum <= max, excluding (0,0,0): C(max+3,3) - 1
     try std.testing.expectEqual(@as(usize, 3), tripleCount(1)); // (1,0,0),(0,1,0),(0,0,1)
     try std.testing.expectEqual(@as(usize, 9), tripleCount(2)); // C(5,3)-1 = 9
     try std.testing.expectEqual(@as(usize, 19), tripleCount(3)); // C(6,3)-1 = 19
@@ -134,7 +134,7 @@ test "liczba trójek zgadza się z symbolem Newtona" {
     try std.testing.expectEqual(@as(usize, 55), tripleCount(5)); // C(8,3)-1 = 55
 }
 
-test "enumeracja jest deterministyczna i bez powtórzeń" {
+test "enumeration is deterministic and free of duplicates" {
     var buf_a: [64]Triple = undefined;
     var buf_b: [64]Triple = undefined;
     const na = enumerateTriples(&buf_a, MAX_TOTAL);
@@ -144,7 +144,7 @@ test "enumeracja jest deterministyczna i bez powtórzeń" {
 
     for (0..na) |i| {
         try std.testing.expect(buf_a[i].eql(buf_b[i]));
-        // brak powtórzeń
+        // no duplicates
         for (i + 1..na) |j| {
             try std.testing.expect(!buf_a[i].eql(buf_a[j]));
         }
@@ -172,7 +172,7 @@ test "SigBuf buduje poprawne sygnatury i algebry" {
     }
 }
 
-test "konwencja nie zmienia trójki ani rozkładu ról" {
+test "the convention changes neither the triple nor the roles" {
     var buf: [64]Triple = undefined;
     const n = enumerateTriples(&buf, MAX_TOTAL);
     for (0..n) |i| {
@@ -182,7 +182,7 @@ test "konwencja nie zmienia trójki ani rozkładu ról" {
         for (0..sb_minus.len) |j| {
             try std.testing.expectEqual(sb_minus.roles[j], sb_plus.roles[j]);
         }
-        // znaki formy są przeciwne, rola ta sama
+        // the form signs are opposite, the role is the same
         try std.testing.expectApproxEqAbs(
             sb_minus.signature().signAt(0),
             -sb_plus.signature().signAt(0),
@@ -191,7 +191,7 @@ test "konwencja nie zmienia trójki ani rozkładu ról" {
     }
 }
 
-test "algebra zdegenerowana odrzuca podniesienie wskaźnika" {
+test "a degenerate algebra rejects raising an index" {
     const sb = SigBuf.build(.{ .p = 2, .q = 1, .r = 1 }, .mostly_minus);
     const f = mrs.form.DiagonalForm{ .signature = sb.signature() };
     const c = [_]f64{ 1, 1, 1, 1 };

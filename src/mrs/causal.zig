@@ -1,51 +1,51 @@
-//! MRS-0 :: Moduł przyczynowości
+//! MRS-LAB :: causality module
 //!
-//! Dwie relacje, które trzeba rozróżniać — i których nierozróżnianie było
-//! najpoważniejszym błędem w specyfikacji projektu:
+//! Two relations that must be told apart — and conflating them was the most
+//! serious error in the original project specification:
 //!
 //!   * SEPARACJA (niezorientowana).  u ⊑ v  ⟺  g(v−u, v−u) ≤ 0.
-//!     "Różnica jest czasowa albo zerowa". Symetryczna na separacjach
-//!     zerowych, więc NIE jest antysymetryczna, więc nie jest porządkiem.
+//!     "The difference is temporal or null". Symmetric on null separations,
+//!     therefore NOT antisymmetric, therefore not an order.
 //!
-//!   * PRZYCZYNOWOŚĆ (zorientowana).  u ⪯ v  ⟺  (v−u) leży w domkniętym
-//!     stożku przyszłości, czyli klasa różnicy to `temporal` albo
-//!     `null_like` ORAZ składowa wzdłuż wybranej strzałki czasu ≥ 0.
+//!   * CAUSAL ORDER (oriented). u ⪯ v ⟺ (v−u) lies in the closed future
+//!     cone, i.e. the class of the difference is `temporal` or `null_like`
+//!     AND the component along the chosen time arrow is >= 0.
 //!
-//! Orientacja wymaga dodatkowej struktury: wyboru strzałki czasu. Przy
-//! p = 1 forma wyznacza ją z dokładnością do znaku, przy p ≥ 2 — nie
-//! wyznacza jej wcale. To nie jest szczegół implementacyjny, to jest treść
+//! Orientation requires extra structure: a choice of time arrow. For p = 1 the
+//! form determines it up to a sign; for p >= 2 it does not determine it at all.
+//! That is not an implementation detail, it is the content of Theorem 5.2.
 //! Twierdzenia 5.2.
 //!
 //! ---------------------------------------------------------------------------
-//! WYNIK GŁÓWNY MRS-0
+//! MAIN RESULT OF THE LABORATORY
 //! ---------------------------------------------------------------------------
-//! Twierdzenie 5.1 (przechodniość wymaga jednego czasu).
-//!   Dla r = 0 i q ≥ 1: ⪯ jest przechodnia  ⟺  p = 1.
-//!   (⟸) Stożek przyszłości jest wypukły, a wypukłość stożka daje
-//!       przechodniość: a, b w stożku ⟹ a + b w stożku.
-//!   (⟹) Dla p ≥ 2 istnieje świadek — patrz `canonicalWitness`.
+//! Theorem 5.1 (transitivity requires a single time).
+//!   For r = 0 and q >= 1: ⪯ is transitive  ⟺  p = 1.
+//!   (<=) The future cone is convex, and convexity of the cone gives
+//!        transitivity: a, b in the cone imply a + b in the cone.
+//!   (=>) For p >= 2 there is a witness — see `canonicalWitness`.
 //!
-//! Twierdzenie 5.2 (⪯ jest porządkiem częściowym dokładnie dla sygnatur
+//! Theorem 5.2 (⪯ is a partial order exactly for Lorentzian signatures).
 //! lorentzowskich).
-//!   Zwrotność: zawsze.
-//!   Przechodniość: ⟺ p = 1 (przy r = 0).
+//!   Reflexivity: always.
+//!   Transitivity: ⟺ p = 1 (with r = 0).
 //!   Antysymetria: ⟺ r = 0 i p ≤ 1.
-//!       Dowód (⟸) dla p = 1, r = 0: jeżeli d i −d są w stożku, to
-//!       składowa strzałki daje d_arrow = 0, a wtedy g(d) ≥ 0 wymusza
-//!       Zerowanie wszystkich składowych przestrzennych, więc d = 0.
-//!       Dowód (⟹) dla p ≥ 2: wektor o zerowej składowej strzałki,
-//!       niezerowej drugiej składowej czasowej i dostatecznie małej
-//!       przestrzennej należy do stożka razem z przeciwieństwem.
-//!       Dla r > 0: każdy wektor jądra jest takim świadkiem.
-//!   Wniosek: ⪯ jest porządkiem częściowym ⟺ p = 1 ∧ r = 0 ⟺ `isLorentzian()`.
-//!   To znaczy, że predykat `isLorentzian` w module sygnatur nie jest
-//!   ozdobnikiem — jest warunkiem koniecznym i wystarczającym na to, żeby
-//!   przyczynowość była porządkiem.
+//!       Proof (<=) for p = 1, r = 0: if d and −d are both in the cone, the
+//!       arrow component forces d_arrow = 0, and then g(d) >= 0 forces all
+//!       spatial components to vanish, so d = 0.
+//!       Proof (=>) for p >= 2: a vector with zero arrow component, a nonzero
+//!       second temporal component and a sufficiently small spatial part lies
+//!       in the cone together with its opposite.
+//!       For r > 0: every radical vector is such a witness.
+//!   Conclusion: ⪯ is a partial order ⟺ p = 1 and r = 0 ⟺ `isLorentzian()`.
+//!   That means the `isLorentzian` predicate is not decoration — it is the
+//!   necessary and sufficient condition for causality to be an order.
+//!   causality is an order.
 //!
-//! Twierdzenie 5.3 (r > 0 niszczy przyczynowość).
-//!   Jeżeli r > 0, to istnieje wektor jądra d ≠ 0 z g(d,d) = 0 i zerową
-//!   składową strzałki czasu, czyli u ⪯ u+d ⪯ u przy d ≠ 0. Relacja
-//!   przestaje odróżniać punkty. Przyczynowość wymaga r = 0.
+//! Theorem 5.3 (r > 0 destroys causality).
+//!   If r > 0 there is a radical vector d ≠ 0 with g(d,d) = 0 and zero arrow
+//!   component, so u ⪯ u+d ⪯ u with d ≠ 0. The relation stops telling points
+//!   apart. Causality requires r = 0.
 
 const std = @import("std");
 const sig = @import("signature.zig");
@@ -62,8 +62,8 @@ pub const OrderError = error{
     DimensionTooLarge,
 };
 
-/// Świadek naruszenia własności. Wektory trzymamy na stosie, bo moduł
-/// przyczynowości bywa używany w gorących pętlach symulacyjnych.
+/// A witness of a property violation. The vectors live on the stack, because the
+/// causality module is used inside simulation hot loops.
 pub const Witness = struct {
     u: [MAX_DIM]f64 = [_]f64{0} ** MAX_DIM,
     w: [MAX_DIM]f64 = [_]f64{0} ** MAX_DIM,
@@ -99,13 +99,13 @@ fn writeVec(w: anytype, v: []const f64) !void {
 }
 
 pub const ConeMode = enum {
-    /// Klasa `temporal`, skierowany w przyszłość.
+    ///     /// Class `temporal`, future directed.
     timelike_future,
-    /// Klasa `null_like`, skierowany w przyszłość.
+    ///     /// Class `null_like`, future directed.
     null_future,
 };
 
-/// Co się psuje w danej sygnaturze.
+/// What goes wrong in a given signature.
 pub const Causality = struct {
     reflexive: bool,
     transitive: bool,
@@ -116,21 +116,21 @@ pub const Causality = struct {
     }
 
     pub fn label(self: Causality) []const u8 {
-        if (self.isPartialOrder()) return "porządek częściowy";
-        if (self.transitive) return "praporządek (brak antysymetrii)";
-        return "ani przechodnia, ani antysymetryczna";
+        if (self.isPartialOrder()) return "partial order";
+        if (self.transitive) return "preorder (no antisymmetry)";
+        return "neither transitive nor antisymmetric";
     }
 };
 
 pub const Order = struct {
     f: DiagonalForm,
     /// Tolerancja rozpoznania wektora zerowego. W arytmetyce zmiennoprzecinkowej
-    /// g(v,v) = 0 realizuje się jako |g| ~ eps, więc "zerowy" MUSI być
-    /// pojęciem z tolerancją. W MRS tolerancja jest jawnym parametrem typu,
-    /// a nie magiczną stałą rozsianą po kodzie.
+    ///     /// g(v,v) = 0 is realised as |g| ~ eps, so "null" MUST be a notion with
+    ///     /// a tolerance. In MRS-LAB the tolerance is an explicit parameter of the
+    ///     /// type, not a magic constant scattered through the code.
     tol: f64 = 1e-9,
-    /// Indeks wymiaru wybranego jako strzałka czasu. Przy p ≥ 2 to jest
-    /// DODATKOWA struktura, której forma sama nie wyznacza.
+    ///     /// Index of the dimension chosen as the time arrow. For p >= 2 this is
+    ///     /// EXTRA structure that the form itself does not determine.
     time_arrow: usize,
 
     pub fn init(s: Signature, time_arrow: usize) OrderError!Order {
@@ -152,9 +152,9 @@ pub const Order = struct {
         return self.f.eval(v);
     }
 
-    /// Domknięty stożek przyszłości. Konwencja znaku wchodzi WYŁĄCZNIE
-    /// przez `classify` — dzięki temu funkcja działa i dla (+,−,−,−),
-    /// i dla (−,+,+,+).
+    ///     /// Closed future cone. The sign convention enters EXCLUSIVELY through
+    ///     /// `classify`, which is why this works for (+,−,−,−) as well,
+    ///     and for (−,+,+,+).
     pub fn inFutureCone(self: Order, v: []const f64) bool {
         if (self.f.classifyTol(v, self.tol) == .spatial) return false;
         return v[self.time_arrow] >= 0.0;
@@ -168,33 +168,33 @@ pub const Order = struct {
     }
 
     /// Separacja niezorientowana: g(v−u, v−u) ≤ 0.
-    /// To NIE jest ta sama relacja co ⪯ — jest symetryczna na stożku
-    /// zerowym, więc nie jest porządkiem.
+    ///     /// This is NOT the same relation as ⪯ — it is symmetric on the null
+    ///     /// cone, so it is not an order.
     pub fn separation(self: Order, u: []const f64, v: []const f64) bool {
         var d: [MAX_DIM]f64 = undefined;
         for (0..u.len) |i| d[i] = v[i] - u[i];
         return self.f.classifyTol(d[0..u.len], self.tol) != .spatial;
     }
 
-    /// Separacja zerowa: g(v−u, v−u) = 0 — relacja równoważności,
-    /// której klasy to promienie świetlne.
+    ///     /// Null separation: g(v−u, v−u) = 0 — an equivalence relation whose
+    ///     /// classes are the light rays.
     pub fn nullSeparated(self: Order, u: []const f64, v: []const f64) bool {
         var d: [MAX_DIM]f64 = undefined;
         for (0..u.len) |i| d[i] = v[i] - u[i];
         return self.f.classifyTol(d[0..u.len], self.tol) == .null_like;
     }
 
-    // -- generatory wektorów w stożku ----------------------------------------
+    // // -- cone vector generators ----------------------------------------------
 
-    /// Losowy wektor w stożku przyszłości. Konstrukcja jednolita dla obu
+    ///     /// Random vector in the future cone. The construction is uniform across
     /// konwencji znaku:
-    ///   1. losujemy składowe poza strzałką czasu,
-    ///   2. skalujemy grupę przestrzenną tak, by jej wkład do g wynosił
-    ///      Σ_temporal_rest x² + 1 — wtedy wkład wszystkich wymiarów poza
-    ///      strzałką jest równy dokładnie −s_arrow,
-    ///   3. g = s_arrow(t² − 1), więc t = 1 daje wektor zerowy, a t = 2
-    ///      wektor czasowy — w OBU konwencjach, bo "czasowy" znaczy
-    ///      "składowa czasowa dominuje", a nie "g ma konkretny znak".
+    ///     ///   1. draw the components outside the time arrow,
+    ///     ///   2. scale the spatial group so that its contribution to g is
+    ///     ///      Sum_temporal_rest x² + 1 — then the contribution of all
+    ///     ///      dimensions outside the arrow is exactly −s_arrow,
+    ///     ///   3. g = s_arrow(t² − 1), so t = 1 gives a null vector and t = 2
+    ///     ///      timelike vector — in BOTH conventions, because "temporal" means
+    ///     ///      "the temporal component dominates", not "g has a given sign".
     pub fn randomConeVec(
         self: Order,
         out: *[MAX_DIM]f64,
@@ -219,7 +219,7 @@ pub const Order = struct {
             }
         }
 
-        if (q_space <= 1e-12) return false; // brak wymiaru przestrzennego = brak stożka
+        if (q_space <= 1e-12) return false; //         if (q_space <= 1e-12) return false; // no spatial dimension = no cone
         const f = @sqrt((q_time_rest + 1.0) / q_space);
         for (0..nn) |i| {
             if (s.roles[i] == .spatial) out[i] *= f;
@@ -230,7 +230,7 @@ pub const Order = struct {
             if (i == self.time_arrow) continue;
             other += s.signAt(i) * out[i] * out[i];
         }
-        if (@abs(other + s_arrow) > 1e-9) return false; // konstrukcja nie wyszła
+        if (@abs(other + s_arrow) > 1e-9) return false; //         if (@abs(other + s_arrow) > 1e-9) return false; // construction failed
 
         out[self.time_arrow] = switch (mode) {
             .null_future => 1.0,
@@ -244,18 +244,18 @@ pub const Order = struct {
         };
     }
 
-    /// Losowy wektor w stożku o losowym trybie (czasowy albo zerowy).
-    /// Kontrprzykłady na przechodniość dla p ≥ 2 wymagają wektorów
-    /// ZEROWYCH (dowód: suma dwóch czasowych o tym samym zwrocie
-    /// strzałki zostaje w stożku), więc generator musi umieć oba.
+    ///     /// Random vector in the cone with a random mode (timelike or null).
+    ///     /// Counterexamples to transitivity for p >= 2 require NULL vectors
+    ///     /// (proof: the sum of two timelike vectors with the same arrow sense
+    ///     /// stays in the cone), so the generator must be able to produce both.
     pub fn randomConeVecAny(self: Order, out: *[MAX_DIM]f64, rnd: std.Random) bool {
         const mode: ConeMode = if (rnd.float(f64) < 0.5) .timelike_future else .null_future;
         return self.randomConeVec(out, rnd, mode);
     }
 
-    // -- wyszukiwanie świadków ----------------------------------------------
+    // // -- witness search ------------------------------------------------------
 
-    /// Naruszenie przechodniości ⪯: u ⪯ w, w ⪯ v, ale u ⋠ v.
+    ///     /// Transitivity violation ⪯: u ⪯ w, w ⪯ v, but u ⋠ v.
     pub fn searchTransitivityViolation(
         self: Order,
         trials: usize,
@@ -285,8 +285,8 @@ pub const Order = struct {
         return null;
     }
 
-    /// Czy stożek przyszłości jest wypukły (próbkowanie).
-    /// Wypukłość ⟺ przechodniość ⪯.
+    ///     /// Is the future cone convex (sampling)?
+    ///     /// Convexity ⟺ transitivity of ⪯.
     pub fn coneIsConvex(self: Order, trials: usize, rnd: std.Random) bool {
         const nn = self.dim();
         var a: [MAX_DIM]f64 = undefined;
@@ -303,12 +303,12 @@ pub const Order = struct {
         return checked > 0;
     }
 
-    /// Konstrukcyjny świadek nieprzechodniości dla p ≥ 2.
+    ///     /// Constructive transitivity witness for p >= 2.
     /// Wymiary: t0 i t1 czasowe, s przestrzenny.
     ///   a   = e_t0 + e_s      → g = s_t − s_s = 0         (zerowy)
     ///   v−a = e_t1 + e_s      → g = 0                      (zerowy)
     ///   v   = e_t0 + e_t1 + 2·e_s → g = 2·s_t − 4·s_s < 0  (przestrzenny)
-    /// Widać, że nierówność "2·s_t < 4·s_s" zachodzi w obu konwencjach,
+    ///     /// The inequality "2·s_t < 4·s_s" holds in both conventions,
     /// bo s_s = −s_t.
     pub fn canonicalWitness(s: Signature) OrderError!?Witness {
         if (s.p() < 2) return null;
@@ -340,10 +340,10 @@ pub const Order = struct {
         return wit;
     }
 
-    /// Świadek braku antysymetrii ⪯: u ≠ v z u ⪯ v i v ⪯ u.
-    /// Istnieje dokładnie wtedy, gdy r > 0 albo p ≥ 2 (Twierdzenie 5.2).
-    /// Zwraca `null` dla sygnatur lorentzowskich — i to jest zgodne
-    /// z twierdzeniem, a nie przypadkiem.
+    ///     /// Witness of missing antisymmetry of ⪯: u ≠ v with u ⪯ v and v ⪯ u.
+    ///     /// It exists exactly when r > 0 or p >= 2 (Theorem 5.2).
+    ///     /// Returns `null` for Lorentzian signatures — and that is consistent
+    ///     /// with the theorem, not a coincidence.
     pub fn searchAntisymmetryViolation(s: Signature) OrderError!?Witness {
         const nn = s.n();
         var idx_t: [2]usize = undefined;
@@ -369,13 +369,13 @@ pub const Order = struct {
 
         var wit = Witness{ .len = nn };
         if (idx_rad != std.math.maxInt(usize)) {
-            // wektor jądra: niezerowy, zerowa norma, zerowa składowa strzałki
+            // radical vector: nonzero, zero norm, zero arrow component
             wit.v[idx_rad] = 1.0;
             return wit;
         }
         if (nt >= 2 and idx_s != std.math.maxInt(usize)) {
-            // d: strzałka 0, druga składowa czasowa 1, przestrzeń 0.5
-            // → g = s_t·(1 − 0.25), klasa czasowa w obu konwencjach
+            // d: arrow 0, second temporal component 1, space 0.5
+            // → g = s_t·(1 − 0.25), temporal class in both conventions
             wit.v[idx_t[1]] = 1.0;
             wit.v[idx_s] = 0.5;
             return wit;
@@ -383,7 +383,7 @@ pub const Order = struct {
         return null;
     }
 
-    /// Pełna diagnoza: czy ⪯ jest porządkiem częściowym i co konkretnie
+    ///     /// Full diagnosis: is ⪯ a partial order, and what exactly fails.
     /// zawodzi. Weryfikacja empiryczna Twierdzenia 5.2.
     pub fn diagnose(self: Order, trials: usize, rnd: std.Random) OrderError!Causality {
         const trans_viol = self.searchTransitivityViolation(trials, rnd) != null;
@@ -430,20 +430,20 @@ pub fn probeTransitivity(self: Order, trials: usize, rnd: std.Random) Transitivi
 // Testy
 // ---------------------------------------------------------------------------
 
-test "Minkowski 3+1: ⪯ jest porządkiem częściowym" {
+test "Minkowski 3+1: ⪯ is a partial order" {
     var prng = std.Random.DefaultPrng.init(2024);
     const rnd = prng.random();
     const o = try Order.init(sig.minkowski_3_1, 0);
 
     const zero = [_]f64{ 0, 0, 0, 0 };
-    try std.testing.expect(o.leq(&zero, &zero)); // zwrotność
+    try std.testing.expect(o.leq(&zero, &zero)); //     try std.testing.expect(o.leq(&zero, &zero)); // reflexivity
 
     const res = probeTransitivity(o, 20_000, rnd);
     try std.testing.expectEqual(@as(usize, 0), res.violations);
     try std.testing.expect(res.checked > 15_000);
     try std.testing.expect(res.convex);
 
-    // antysymetria: brak świadka, i to jest treść twierdzenia
+    // antisymmetry: no witness, and that is the content of the theorem
     try std.testing.expectEqual(
         @as(?Witness, null),
         try Order.searchAntisymmetryViolation(sig.minkowski_3_1),
@@ -457,7 +457,7 @@ test "Minkowski 3+1: ⪯ jest porządkiem częściowym" {
     try std.testing.expect(diag.isPartialOrder());
 }
 
-test "Twierdzenie 5.1: p = 2 łamie przechodniość" {
+test "Theorem 5.1: p = 2 breaks transitivity" {
     const o = try Order.init(sig.two_times_2_1, 0);
 
     const wit = (try Order.canonicalWitness(sig.two_times_2_1)).?;
@@ -476,12 +476,12 @@ test "Twierdzenie 5.1: p = 2 łamie przechodniość" {
     try std.testing.expectEqual(form.Class.null_like, o.f.classify(&diff));
     try std.testing.expectEqual(form.Class.spatial, o.f.classify(v));
 
-    // niezależne potwierdzenie: losowe próby też znajdują naruszenie
+    // independent confirmation: random trials also find a violation
     var prng = std.Random.DefaultPrng.init(31);
     try std.testing.expect(o.searchTransitivityViolation(5000, prng.random()) != null);
 }
 
-test "Twierdzenie 5.2: brak antysymetrii dla p ≥ 2 i dla r > 0" {
+test "Theorem 5.2: no antisymmetry for p >= 2 and for r > 0" {
     // p = 2, r = 0
     {
         const o = try Order.init(sig.two_times_2_1, 0);
@@ -500,23 +500,23 @@ test "Twierdzenie 5.2: brak antysymetrii dla p ≥ 2 i dla r > 0" {
         const v = wit.vSlice();
         try std.testing.expect(o.leq(u, v));
         try std.testing.expect(o.leq(v, u));
-        try std.testing.expect(v[3] != 0.0); // wektor jądra, u ≠ v
+        try std.testing.expect(v[3] != 0.0); //     try std.testing.expect(v[3] != 0.0); // radical vector, u ≠ v
     }
-    // p = 1, r = 0: brak świadka — porządek częściowy
+    // p = 1, r = 0: no witness — a partial order
     {
         try std.testing.expectEqual(
             @as(?Witness, null),
             try Order.searchAntisymmetryViolation(sig.minkowski_3_1),
         );
     }
-    // euklidesowa (p = 0): nie ma stożka, nie ma strzałki czasu
+    // Euclidean (p = 0): no cone, no time arrow
     try std.testing.expectError(
         error.TimeArrowNotTemporal,
         Order.init(sig.euclidean_4, 0),
     );
 }
 
-test "Twierdzenie 5.2 — pełna charakteryzacja: porządek ⟺ lorentzowska" {
+test "Theorem 5.2 — full characterisation: order ⟺ Lorentzian" {
     var prng = std.Random.DefaultPrng.init(4242);
     const cases = [_]sig.Signature{
         sig.minkowski_3_1,
@@ -532,28 +532,28 @@ test "Twierdzenie 5.2 — pełna charakteryzacja: porządek ⟺ lorentzowska" {
     }
 }
 
-test "separacja zerowa jest symetryczna, więc nie jest porządkiem" {
+test "null separation is symmetric, so it is not an order" {
     const o = try Order.init(sig.minkowski_1_1, 0);
     const u = [_]f64{ 0, 0 };
     const v = [_]f64{ 1, 1 }; // zerowy: g = 1 − 1 = 0
 
-    // relacja niezorientowana: oba kierunki, u ≠ v → brak antysymetrii
+    // unoriented relation: both directions, u ≠ v → no antisymmetry
     try std.testing.expect(o.separation(&u, &v));
     try std.testing.expect(o.separation(&v, &u));
     try std.testing.expect(o.nullSeparated(&u, &v));
     try std.testing.expect(u[0] != v[0]);
 
-    // relacja zorientowana: v ⪯ u NIE zachodzi (strzałka czasu maleje)
+    // oriented relation: v ⪯ u does NOT hold (the time arrow decreases)
     try std.testing.expect(o.leq(&u, &v));
     try std.testing.expect(!o.leq(&v, &u));
 
-    // na ilorazie przez separację zerową porządek jest ostry
+    // on the quotient by null separation the order is strict
     const x = [_]f64{ 2, 0 };
     try std.testing.expect(o.leq(&u, &x));
     try std.testing.expect(!o.leq(&x, &u));
 }
 
-test "generator wektorów zerowych faktycznie daje g = 0" {
+test "the null vector generator really produces g = 0" {
     var prng = std.Random.DefaultPrng.init(4242);
     const rnd = prng.random();
     const o = try Order.init(sig.minkowski_3_1, 0);
@@ -568,7 +568,7 @@ test "generator wektorów zerowych faktycznie daje g = 0" {
     try std.testing.expect(hits > 900);
 }
 
-test "generator wektorów czasowych działa w obu konwencjach" {
+test "the timelike vector generator works in both conventions" {
     var prng = std.Random.DefaultPrng.init(555);
     const rnd = prng.random();
     const cases = [_]sig.Signature{
@@ -591,14 +591,14 @@ test "generator wektorów czasowych działa w obu konwencjach" {
     }
 }
 
-test "Twierdzenie 5.3: r > 0 degeneruje przyczynowość" {
+test "Theorem 5.3: r > 0 degenerates causality" {
     const o = try Order.init(sig.degenerate_2_1_1, 0);
 
-    const rad = [_]f64{ 0, 0, 0, 1 }; // wektor z jądra
+    const rad = [_]f64{ 0, 0, 0, 1 }; //     const rad = [_]f64{ 0, 0, 0, 1 }; // radical vector
     try std.testing.expectApproxEqAbs(@as(f64, 0.0), o.norm2(&rad), 1e-15);
     try std.testing.expect(o.nullSeparated(&rad, &[_]f64{ 0, 0, 0, 0 }));
 
-    // przyczynowość przestaje odróżniać punkty: 0 ⪯ rad ⪯ 0, a rad ≠ 0
+    // causality stops telling points apart: 0 ⪯ rad ⪯ 0 with rad ≠ 0
     const zero = [_]f64{ 0, 0, 0, 0 };
     try std.testing.expect(o.leq(&zero, &rad));
     try std.testing.expect(o.leq(&rad, &zero));
@@ -607,7 +607,7 @@ test "Twierdzenie 5.3: r > 0 degeneruje przyczynowość" {
     try std.testing.expectError(error.DegenerateForm, o.f.raiseIndex(&rad, &out));
 }
 
-test "strzałka czasu musi być wymiarem czasowym" {
+test "the time arrow must be a temporal dimension" {
     try std.testing.expectError(
         error.TimeArrowNotTemporal,
         Order.init(sig.minkowski_3_1, 1),

@@ -3,13 +3,13 @@ const std = @import("std");
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
 
-    // Domyślnie ReleaseFast, bo to projekt pomiarowy: benchmark w trybie
-    // Debug mierzyłby instrumentację bezpieczeństwa, a nie algorytm.
-    // Można nadpisać: zig build bench -Doptimize=Debug
+    //     // Default ReleaseFast, because this is a measurement project: a benchmark
+    //     // in Debug mode would measure the safety instrumentation, not the algorithm.
+    //     // It can be overridden: zig build bench -Doptimize=Debug
     const optimize = b.option(
         std.builtin.OptimizeMode,
         "optimize",
-        "Tryb optymalizacji (domyślnie ReleaseFast)",
+        "Optimisation mode (default ReleaseFast)",
     ) orelse .ReleaseFast;
 
     const mrs_mod = b.addModule("mrs", .{
@@ -34,17 +34,17 @@ pub fn build(b: *std.Build) void {
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
     if (b.args) |args| run_cmd.addArgs(args);
-    const run_step = b.step("run", "Uruchom mrs (domyślnie: demo)");
+    const run_step = b.step("run", "Run mrs-lab (default: demo)");
     run_step.dependOn(&run_cmd.step);
 
     // --- testy -------------------------------------------------------------
-    // Testy uruchamiamy w TRZECH trybach, nie w jednym. Powód: domyślny tryb
-    // tego projektu to ReleaseFast (bo to projekt pomiarowy), a w ReleaseFast
-    // kontrole bezpieczeństwa są WYŁĄCZONE i przepełnienie czy wyjście poza
-    // zakres są cichym UB. Tryb Debug i ReleaseSafe zamieniają to na panikę,
-    // więc dopiero one sprawdzają stabilność. ReleaseFast zostaje, żeby
-    // złapać błędy zależne od optymalizacji.
-    const test_step = b.step("test", "Uruchom wszystkie testy (Debug + ReleaseSafe + ReleaseFast)");
+    //     // Tests run in THREE modes, not one. Reason: the default mode of this
+    //     // project is ReleaseFast (it is a measurement project), and in ReleaseFast
+    //     // the safety checks are OFF, so an overflow or an out-of-bounds access is
+    //     // silent UB. Debug and ReleaseSafe turn that into a panic, so only they
+    //     // actually check stability. ReleaseFast stays to catch errors that depend
+    //     // on optimisation.
+    const test_step = b.step("test", "Run all tests (Debug + ReleaseSafe + ReleaseFast)");
 
     const test_modes = [_]std.builtin.OptimizeMode{ .Debug, .ReleaseSafe, .ReleaseFast };
     for (test_modes) |mode| {
@@ -75,13 +75,13 @@ pub fn build(b: *std.Build) void {
     demo_cmd.addArg("demo");
     demo_step.dependOn(&demo_cmd.step);
 
-    const verify_step = b.step("verify", "Sprawdzenia spójności (kod wyjścia 1 przy błędzie)");
+    const verify_step = b.step("verify", "Consistency checks (exit code 1 on failure)");
     const verify_cmd = b.addRunArtifact(exe);
     verify_cmd.step.dependOn(b.getInstallStep());
     verify_cmd.addArg("verify");
     verify_step.dependOn(&verify_cmd.step);
 
-    const bench_step = b.step("bench", "Raport pomiarowy T1–T4 do results/RESULTS.md");
+    const bench_step = b.step("bench", "Benchmark report T1-T4 into results/RESULTS.md");
     const bench_cmd = b.addRunArtifact(exe);
     bench_cmd.step.dependOn(b.getInstallStep());
     bench_cmd.addArgs(&.{ "bench", "--out", "results/RESULTS.md" });
@@ -111,19 +111,19 @@ pub fn build(b: *std.Build) void {
     check_cmd.addArgs(&.{ "bench", "--quick" });
     check_step.dependOn(&check_cmd.step);
 
-    const explore_step = b.step("explore", "Tabela wyników P2/P4 (do sumy p+q+r <= 4)");
+    const explore_step = b.step("explore", "Property table P2/P4 (p+q+r <= 4)");
     const explore_cmd = b.addRunArtifact(exe);
     explore_cmd.step.dependOn(b.getInstallStep());
     explore_cmd.addArg("explore");
     explore_step.dependOn(&explore_cmd.step);
 
-    const explore_full_step = b.step("explore-full", "Tabela wyników P2/P4 dla sumy <= 5 (wolniejsze)");
+    const explore_full_step = b.step("explore-full", "Property table P2/P4 up to p+q+r <= 5 (slower)");
     const explore_full_cmd = b.addRunArtifact(exe);
     explore_full_cmd.step.dependOn(b.getInstallStep());
     explore_full_cmd.addArgs(&.{ "explore", "--max", "5" });
     explore_full_step.dependOn(&explore_full_cmd.step);
 
-    const bench_quick_step = b.step("bench-quick", "Krótki raport pomiarowy");
+    const bench_quick_step = b.step("bench-quick", "Short benchmark report");
     const bench_quick_cmd = b.addRunArtifact(exe);
     bench_quick_cmd.step.dependOn(b.getInstallStep());
     bench_quick_cmd.addArgs(&.{ "bench", "--quick" });

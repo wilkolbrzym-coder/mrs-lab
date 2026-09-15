@@ -6,7 +6,7 @@
 //! boosts in the 1+1 plane. Three facts on which the whole module rests:
 //!
 //!   L1. The norm N(z) = re² - im² coincides with the Minkowski form in 1+1:
-//!       dla v = (t, x) mamy g(v,v) = N(t + j·x).
+//!       for v = (t, x) we have g(v,v) = N(t + j·x).
 //!
 //!   L2. Zero divisors (N(z) = 0, i.e. re = ±im) correspond to lightlike
 //!       vectors. The light cone is the set of zero divisors of the ring.
@@ -72,7 +72,7 @@ pub const Z = struct {
 
     /// Inverse z^{-1} = conj(z) / N(z). Exists ⟺ N(z) ≠ 0.
     ///
-    /// OBLICZENIE JEST SKALOWANE, i to nie jest ozdoba. Naiwna wersja
+    /// THE COMPUTATION IS SCALED, and that is not decoration. The naive version
     /// `conj(z)/N(z)` with N(z) = re²−im² breaks at both ends of the range:
     ///
     ///   * re = 1e-200 → N underflows to 0 → a false `NotInvertible`,
@@ -81,7 +81,7 @@ pub const Z = struct {
     ///     returned the ZERO element as the inverse, silently, and z·z⁻¹ ≠ 1.
     ///
     /// Dlatego najpierw skalujemy: z = s·(r + j·i) przy s = |re|+|im|,
-    /// wtedy N(z) = s²·Ñ, gdzie Ñ = r²−i² jest liczone na liczbach
+    /// then N(z) = s²·Ñ, where Ñ = r²−i² is computed on order-one numbers, and the
     /// order one, so it neither underflows nor overflows. The result:
     /// conj(r+ji) / (s·Ñ).
     pub fn inv(a: Z) error{NotInvertible}!Z {
@@ -140,7 +140,7 @@ test "j² = +1" {
     try std.testing.expectApproxEqAbs(@as(f64, 0.0), jj.im, 1e-15);
 }
 
-test "L1: norma pokrywa się z formą Minkowskiego 1+1" {
+test "L1: the norm coincides with the Minkowski form in 1+1" {
     const sig = @import("signature.zig");
     const form = @import("form.zig");
     const f = form.DiagonalForm{ .signature = sig.minkowski_1_1 };
@@ -152,7 +152,7 @@ test "L1: norma pokrywa się z formą Minkowskiego 1+1" {
     }
 }
 
-test "L2: zerowy dzielnik ⟺ wektor świetlny" {
+test "L2: zero divisor equals lightlike vector" {
     // (1+j)(1−j) = 1 − j² = 0
     const a = Z.init(1, 1);
     const b = Z.init(1, -1);
@@ -169,7 +169,7 @@ test "L2: zerowy dzielnik ⟺ wektor świetlny" {
     try std.testing.expectError(error.NotInvertible, Z.inv(light));
 }
 
-test "L3: boosty tworzą grupę abelową" {
+test "L3: boosts form an abelian group" {
     var prng = std.Random.DefaultPrng.init(0xC0FFEE);
     const rnd = prng.random();
 
@@ -189,7 +189,7 @@ test "L3: boosty tworzą grupę abelową" {
         try std.testing.expectApproxEqAbs(p1.im, p2.im, 1e-14);
 
         // additivity of rapidity: θ1+θ2. The tolerance is looser than elsewhere and
-        // gdzie indziej i to jest CELOWE: odtworzenie rapidyty przez atanh
+        // elsewhere and that is DELIBERATE: recovering the rapidity through atanh
         // that is DELIBERATE: recovering the rapidity through atanh loses precision
         // for large |θ| (atanh is steep near argument 1). That is exactly the cost
         // MRS-LAB avoids by keeping the rapidity as the coordinate.
@@ -208,7 +208,7 @@ test "L3: boosty tworzą grupę abelową" {
     }
 }
 
-test "Karatsuba zgadza się z iloczynem naiwnym" {
+test "Karatsuba agrees with the naive product" {
     var prng = std.Random.DefaultPrng.init(7);
     const rnd = prng.random();
     for (0..1000) |_| {
@@ -221,7 +221,7 @@ test "Karatsuba zgadza się z iloczynem naiwnym" {
     }
 }
 
-test "norma jest multyplikatywna: N(z1·z2) = N(z1)·N(z2)" {
+test "the norm is multiplicative: N(z1·z2) = N(z1)·N(z2)" {
     // This is why split-complex is the right language for the Lorentz GROUP and
     // not for tachyons themselves: multiplicativity of the norm preserves the
     // class only because the sign of the product is the product of the signs.
@@ -239,7 +239,7 @@ test "norma jest multyplikatywna: N(z1·z2) = N(z1)·N(z2)" {
     }
 }
 
-test "tachiony NIE tworzą podgrupy: iloczyn dwóch przestrzennych jest czasowy" {
+test "tachyons do NOT form a subgroup: two spatial elements multiply to a temporal one" {
     // N = -1 (spatial) times N = -1 gives N = +1 (temporal), so the set of
     // tachyonic elements is not closed under multiplication. This is the precise
     // version of "split-complex is the language of tachyons": it is the language
@@ -256,7 +256,7 @@ test "tachiony NIE tworzą podgrupy: iloczyn dwóch przestrzennych jest czasowy"
     try std.testing.expectApproxEqAbs(@as(f64, 1.0), Z.norm(Z.mul(g1, g2)), 1e-15);
 }
 
-test "REGRESJA: odwrotność działa na obu końcach zakresu" {
+test "REGRESSION: the inverse works at both ends of the range" {
     // Witnesses measured before the fix (probe against the real module):
     //   z=(1e-200,0) → returned error.NotInvertible, although 1/re = 1e200 exists
     //   z=(1e200,0)  → returned (0,-0), i.e. ZERO as the inverse, silently

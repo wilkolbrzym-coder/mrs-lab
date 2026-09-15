@@ -31,7 +31,7 @@ const cl = mrs.clifford;
 const VERSION = "MRS-LAB 0.1.0";
 
 // ---------------------------------------------------------------------------
-// Wejście
+// Input
 // ---------------------------------------------------------------------------
 
 const Options = struct {
@@ -99,8 +99,8 @@ pub fn main(init: std.process.Init) !void {
         _ = try explore_report.writeJson(arena, &aj.writer, eopts);
         try writeFileAll(io, "results/explore.json", aj.written());
     } else if (std.mem.eql(u8, opt.cmd, "bench")) {
-        // Raport budujemy w pamięci, żeby móc wypisać go na ekran
-        // i zapisać do pliku bez liczenia dwa razy.
+        // Build the report in memory so it can be printed to the screen and written
+        // to a file without computing everything twice.
         var aw = Io.Writer.Allocating.init(arena);
         defer aw.deinit();
         try report(io, arena, &aw.writer, opt.quick);
@@ -207,7 +207,7 @@ fn demo(w: *Io.Writer) !void {
             try w.print(" | {s} |\n", .{f.classify(&v).label()});
         }
 
-        // niezmienniczość interwału pod boostem
+        // interval invariance under a boost
         var max_err: f64 = 0;
         var prng = std.Random.DefaultPrng.init(0x5EED_1234);
         const rnd = prng.random();
@@ -301,7 +301,7 @@ fn demo(w: *Io.Writer) !void {
             try w.print("| e{d}·e{d} | {d}{s} |\n", .{ i, i, pp.sign, if (pp.mask == 0) "" else "·e" });
         }
 
-        // sandwich: rotor obraca wektor, długość euklidesowa zachowana
+        // sandwich: a rotor rotates a vector, Euclidean length preserved
         try w.writeAll("\nRotation via the sandwich R·v·R̃ (vector in the e1,e2 plane):\n\n");
         var scratch: [16]cl.Term = undefined;
         const theta = 0.7;
@@ -455,9 +455,9 @@ const Checker = struct {
 
 fn verify(w: *Io.Writer) !usize {
     var c = Checker{ .w = w };
-    try w.print("# {s} — sprawdzenia spójności\n\n", .{VERSION});
+    try w.print("# {s} — consistency checks\n\n", .{VERSION});
 
-    // A1: obie reprezentacje formy dają to samo
+    // A1: both representations of the form give the same thing
     {
         const alloc = std.heap.page_allocator;
         const dense = try form.DenseForm.fromDiagonal(alloc, sig.minkowski_3_1);
@@ -472,7 +472,7 @@ fn verify(w: *Io.Writer) !usize {
             worst = @max(worst, @abs(diag.eval(&v) - dense.eval(&v)));
         }
         var buf: [96]u8 = undefined;
-        const d = try std.fmt.bufPrint(&buf, "maks. różnica = {e:.2}", .{worst});
+        const d = try std.fmt.bufPrint(&buf, "max difference = {e:.2}", .{worst});
         try c.check("A1 form: diagonal == dense", worst < 1e-10, d);
     }
 
@@ -516,7 +516,7 @@ fn verify(w: *Io.Writer) !usize {
         var buf: [176]u8 = undefined;
         const d = try std.fmt.bufPrint(
             &buf,
-            "błąd / (E²+p²) = {e:.2} (bezwzględny {e:.2})",
+            "error / (E²+p²) = {e:.2} (absolute {e:.2})",
             .{ worst_scaled, worst_abs },
         );
         // The threshold is set BY MEASUREMENT, not by theory: the scaled
@@ -527,7 +527,7 @@ fn verify(w: *Io.Writer) !usize {
         try c.check("A3 split-complex boost preserves the interval", worst_scaled < 1e-12, d);
     }
 
-    // A4: zerowy dzielnik ⟺ wektor świetlny
+    // A4: zero divisor ⟺ lightlike vector
     {
         var ok = true;
         var prng = std.Random.DefaultPrng.init(3);
@@ -543,7 +543,7 @@ fn verify(w: *Io.Writer) !usize {
         try c.check("A4 zero divisor ⟺ g(v,v) = 0", ok, "5000 random pairs (t,x)");
     }
 
-    // A5: dyspersja tachionu — trzy reżimy
+    // A5: tachyon dispersion — three regimes
     {
         const t = try mrs.tachyon.Tachyon.init(9.0);
         const ok = t.isPropagating(5.0) and t.isUnstable(2.0) and
@@ -552,7 +552,7 @@ fn verify(w: *Io.Writer) !usize {
         try c.check("A5 tachyon: three regimes and the threshold |p| = μ", ok, "μ = 3: p=5 propagates, p=2 grows at γ=√5, p=3 threshold");
     }
 
-    // A6: nadświetlność generyczna
+    // A6: generic superluminality
     {
         const t = try mrs.tachyon.Tachyon.init(4.0);
         var prng = std.Random.DefaultPrng.init(4);
@@ -568,7 +568,7 @@ fn verify(w: *Io.Writer) !usize {
         try c.check("A6 v_g > 1 for every |p| > μ", min_vg > 1.0, d);
     }
 
-    // A7: p = 1 przechodnia, p = 2 nie
+    // A7: p = 1 transitive, p = 2 not
     {
         var prng = std.Random.DefaultPrng.init(5);
         const o1 = try causal.Order.init(sig.minkowski_3_1, 0);
@@ -580,7 +580,7 @@ fn verify(w: *Io.Writer) !usize {
         try c.check("A7b p = 2: transitivity fails", wit != null, "witness found by random search");
     }
 
-    // A8: relacja niezorientowana nie jest antysymetryczna, zorientowana jest
+    // A8: the unoriented relation is not antisymmetric, the oriented one is
     {
         const o = try causal.Order.init(sig.minkowski_1_1, 0);
         const u = [_]f64{ 0, 0 };
@@ -594,7 +594,7 @@ fn verify(w: *Io.Writer) !usize {
         );
     }
 
-    // A9: relacje definiujące Clifforda
+    // A9: defining relations of the Clifford algebra
     {
         const alg = try cl.Algebra.fromSignature(sig.minkowski_3_1);
         var ok = true;
@@ -615,7 +615,7 @@ fn verify(w: *Io.Writer) !usize {
         try c.check("A9 defining relations of Cl(p,q)", ok, "e_i e_j = −e_j e_i, e_i² = s_i");
     }
 
-    // A10: rzadki == gęsty
+    // A10: sparse == dense
     {
         const alloc = std.heap.page_allocator;
         const alg = try cl.Algebra.fromSignature(sig.minkowski_3_1);
@@ -642,7 +642,7 @@ fn verify(w: *Io.Writer) !usize {
             worst = @max(worst, @abs(dp[i] - sp.get(@intCast(i))));
         }
         var buf: [96]u8 = undefined;
-        const d = try std.fmt.bufPrint(&buf, "maks. różnica = {e:.2}", .{worst});
+        const d = try std.fmt.bufPrint(&buf, "max difference = {e:.2}", .{worst});
         try c.check("A10 sparse == dense Clifford product", worst < 1e-12, d);
     }
 
@@ -658,11 +658,11 @@ fn verify(w: *Io.Writer) !usize {
             worst = @max(worst, @abs(ad - ex));
         }
         var buf: [96]u8 = undefined;
-        const d = try std.fmt.bufPrint(&buf, "maks. błąd = {e:.2}", .{worst});
+        const d = try std.fmt.bufPrint(&buf, "max error = {e:.2}", .{worst});
         try c.check("A11 dual-algebra derivative == analytic", worst < 1e-13, d);
     }
 
-    // A12: konwencja znaku nie zmienia treści
+    // A12: the sign convention does not change the content
     {
         const mm = form.DiagonalForm{ .signature = sig.minkowski_3_1 };
         const mp = form.DiagonalForm{ .signature = sig.minkowski_3_1_flipped };
@@ -705,8 +705,8 @@ fn verify(w: *Io.Writer) !usize {
         var buf: [128]u8 = undefined;
         const d = try std.fmt.bufPrint(
             &buf,
-            "Cl(1,3): {d} trójek blatów, łączność: {s}",
-            .{ m * m * m, if (assoc_ok) "tak" else "NIE" },
+            "Cl(1,3): {d} blade triples, associativity: {s}",
+            .{ m * m * m, if (assoc_ok) "yes" else "NO" },
         );
         try c.check("A13 blade table is associative (translation proof)", assoc_ok, d);
 
@@ -805,13 +805,13 @@ test "argument parsing" {
 }
 
 test {
-    // ZIG-GOTCHA, potwierdzone pomiarem: `zig test` NIE zbiera testów z pliku,
-    // do którego nie ma odwołania Z TEGO bloku — nawet gdy plik jest używany
-    // przez program. Przed naprawą raport pokazywał 37 testów w module
-    // wykonywalnym, gdy w źródłach było 42; cicho ginęły testy z
+    // ZIG GOTCHA, confirmed by measurement: `zig test` collects NO tests from a file
+    // that is not referenced FROM THIS block — even when the file is used by the
+    // program. Before the fix the report showed 37 tests in the executable module
+    // while the sources declared 42; the tests from `bench/harness.zig` and
     // `bench/harness.zig` (1) i `explore/report.zig` (4).
     //
-    // Wniosek na przyszłość: każdy nowy plik z testami MUSI być tu wymieniony.
+    // Conclusion for the future: every new file with tests MUST be listed here.
     _ = @import("bench/harness.zig");
     _ = @import("bench/t1_form.zig");
     _ = @import("bench/t2_boost.zig");

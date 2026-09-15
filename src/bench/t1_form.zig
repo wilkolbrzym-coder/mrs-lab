@@ -1,19 +1,19 @@
 //! MRS :: teza T1 — reprezentacja formy
 //!
-//! Hipoteza: forma zadana sygnaturą (przekątna) jest obliczana w O(n),
-//! a reprezentacja macierzowa w O(n^2); odwrotność odpowiednio O(n) i O(n^3).
+//! Hypothesis: a form given by its signature (diagonal) evaluates in O(n) while
+//! a matrix representation takes O(n^2); the inverse O(n) against O(n^3).
 //!
-//! Baseline dobrany maksymalnie nieuczciwie na naszą niekorzyść — to jest
-//! celowe. Oprócz naiwnej macierzy gęstej mierzymy też wariant
-//! `smart_dense`: implementację, która RAZ sprawdza, czy macierz jest
-//! przekątna, i potem używa szybkiej ścieżki. Taki kod pisze każdy
-//! kompetentny inżynier, który wie, że jego metryka jest diagonalna.
+//! The baseline is chosen to be maximally unfair to us — deliberately. Besides
+//! the naive dense matrix we also measure a `smart_dense` variant: an
+//! implementation that checks ONCE whether the matrix is diagonal and then uses
+//! the fast path. Any competent engineer who knows their metric is diagonal
+//! writes that code.
 //!
 //! Wniosek z pomiaru (docs/07): asymptotycznej przewagi TUTAJ NIE MA,
-//! jeżeli baseline może raz zbadać swoje dane. Przewaga MRS polega na tym,
-//! że ta wiedza jest w typie, więc nie da się jej zgubić ani zapłacić za
-//! nią rozgałęzieniem w gorącej pętli. Mówimy to wprost, zamiast zawyżać
-//! wynik porównaniem z kodem, którego nikt by nie napisał.
+//! if the baseline may inspect its data once. The advantage of MRS-LAB is that
+//! this knowledge lives in the type, so it can neither be lost nor cost a branch
+//! in the hot loop. We say so plainly instead of inflating the result by
+//! comparing against code nobody would write.
 
 const std = @import("std");
 const mrs = @import("mrs");
@@ -25,7 +25,7 @@ const DiagonalForm = mrs.form.DiagonalForm;
 const DenseForm = mrs.form.DenseForm;
 
 /// Konwencjonalna implementacja z jednorazowym rozpoznaniem struktury.
-/// To jest uczciwy baseline: nie udajemy, że nikt nie zauważy przekątności.
+/// This is the honest baseline: we do not pretend nobody notices the diagonal.
 pub const SmartDense = struct {
     n: usize,
     g: []const f64,
@@ -75,8 +75,8 @@ const Ctx = struct {
 };
 
 fn bump(v: []f64) void {
-    // Modyfikacja wejścia przy każdym wywołaniu: bez tego kompilator może
-    // wynieść niezmiennicze obliczenie przed pętlę i zmierzymy zero.
+    // Input mutation on every call: without it the compiler may hoist the loop-
+    // invariant computation and we would measure zero.
     v[0] = if (v[0] > 1e6) 0.0 else v[0] + 1.0;
 }
 
@@ -196,9 +196,9 @@ pub fn run(
     try runInverse(io, alloc, w, quick);
 }
 
-/// T1b — odwrotność formy: O(n) kontra O(n^3).
-/// Tu różnica jest algebraiczna, a nie tylko implementacyjna: nie istnieje
-/// skrót dla ogólnej macierzy gęstej, który ominie eliminację.
+/// T1b — inverse of the form: O(n) against O(n^3).
+/// Here the difference is algebraic rather than implementational: for a general
+/// dense matrix no shortcut avoids elimination.
 fn runInverse(
     io: Io,
     alloc: std.mem.Allocator,

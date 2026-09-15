@@ -1,15 +1,15 @@
 //! MRS :: harness pomiarowy
 //!
-//! Zasady, których trzyma się każdy benchmark w tym projekcie:
+//! Rules every benchmark in this project follows:
 //!
-//!   1. Warmup przed pomiarem (podgrzanie cache i rozgałęzień).
-//!   2. Wiele próbek; raportujemy MINIMUM i MEDIANĘ, nie średnią —
-//!      średnia jest zatruwana przez przerwania systemowe.
-//!   3. Wynik konsumowany przez `doNotOptimizeAway`, a wejście modyfikowane
-//!      przy każdym wywołaniu, żeby kompilator nie mógł wynieść obliczenia
-//!      przed pętlę.
-//!   4. Baseline "konwencjonalny" jest pisany tak, jak napisałby go
-//!      kompetentny inżynier znający swoje dane — nie jako kukła.
+//!   1. Warmup before measuring (warm the cache and the branch predictors).
+//!   2. Many samples; we report the MINIMUM and the MEDIAN, not the mean —
+//!      the mean is poisoned by system interrupts.
+//!   3. The result is consumed through `doNotOptimizeAway` and the input is
+//!      mutated on every call, so the compiler cannot hoist the computation
+//!      out of the loop.
+//!   4. The "conventional" baseline is written the way a competent engineer
+//!      who knows their data would write it — not as a straw man.
 
 const std = @import("std");
 const Io = std.Io;
@@ -43,8 +43,8 @@ pub const Stats = struct {
     }
 };
 
-/// Mierzy `samples` próbek; w każdej próbce wykonuje `inner` wywołań `func`.
-/// `ctx` jest wskaźnikiem — benchmarki trzymają w nim własne bufory.
+/// Measures `samples` samples; inside each it calls `func` `inner` times.
+/// `ctx` is a pointer — benchmarks keep their own buffers in it.
 pub fn measure(
     io: Io,
     alloc: std.mem.Allocator,
@@ -79,14 +79,14 @@ pub fn measure(
     };
 }
 
-/// Szybkość względna: ile razy `baseline` jest wolniejszy od `mrs`.
+/// Relative speed: how many times slower `baseline` is than `mrs`.
 pub fn speedup(baseline_ns_per_op: f64, mrs_ns_per_op: f64) f64 {
     if (mrs_ns_per_op == 0) return 0;
     return baseline_ns_per_op / mrs_ns_per_op;
 }
 
-/// Dobiera liczbę powtórzeń tak, żeby jedna próbka trwała w przybliżeniu
-/// `target_ns` — inaczej dla małych n mierzymy szum zegara.
+/// Picks the iteration count so that one sample lasts approximately
+/// `target_ns` — otherwise for small n we measure clock noise.
 pub fn pickInner(cost_per_op: f64, target_ns: f64) usize {
     if (cost_per_op <= 0) return 1;
     const n = @floor(target_ns / cost_per_op);
@@ -119,7 +119,7 @@ pub fn writeCount(w: anytype, x: f64) !void {
     }
 }
 
-test "harness mierzy to, co ma mierzyć" {
+test "the harness measures what it is supposed to measure" {
     const Ctx = struct {
         x: f64 = 0,
     };
@@ -132,16 +132,16 @@ test "harness mierzy to, co ma mierzyć" {
 
     const alloc = std.testing.allocator;
     _ = alloc;
-    // measure wymaga Io, którego w testach nie ma — sprawdzamy więc tylko
-    // arytmetykę pomocniczą.
+    // `measure` needs Io, which tests do not have — so only the helper
+    // arithmetic is checked here.
     try std.testing.expectEqual(@as(usize, 1), pickInner(0.0, 1e6));
     try std.testing.expect(pickInner(100.0, 1e6) == 10_000);
     try std.testing.expectApproxEqAbs(@as(f64, 4.0), speedup(8.0, 2.0), 1e-15);
     _ = f;
 }
 
-/// Zig nie ma znacznika '+' w specyfikatorach formatu, a przy liczbach
-/// o znaku zmiennym czytelność bardzo zyskuje. Stąd jawne dopisywanie znaku.
+/// Zig has no '+' flag in format specifiers, and readability gains a lot from an
+/// readability gains a lot from an explicit sign. Hence writing it out.
 pub fn writeSigned2(w: anytype, x: f64) !void {
     if (x >= 0.0) try w.writeAll("+");
     try w.print("{d:.2}", .{x});

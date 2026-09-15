@@ -2,7 +2,7 @@
 //!
 //! Dwie reprezentacje tej samej formy kwadratowej g: X × X → K:
 //!
-//!   * `DiagonalForm` — reprezentacja natywna dla MRS: forma zadana jest
+//!   * `DiagonalForm` — the MRS-native representation: the form is given
 //!     by the signature, so `g(v,v) = Σ s_i v_i²`. Cost O(n); the inverse
 //!     (raising an index) is also O(n), because the matrix is diagonal.
 //!
@@ -10,7 +10,7 @@
 //!     Evaluation cost O(n^2), inverse O(n^3) (Gauss-Jordan).
 //!
 //! Both describe THE SAME mathematical object. The cost difference is purely
-//! reprezentacyjna — i to jest falsyfikowalna teza T1 (docs/07).
+//! representational — and that is falsifiable thesis T1.
 
 const std = @import("std");
 const sig = @import("signature.zig");
@@ -36,7 +36,7 @@ pub const Class = enum {
     pub fn label(self: Class) []const u8 {
         return switch (self) {
             .temporal => "czasowy",
-            .null_like => "zerowy (świetlny)",
+            .null_like => "null (lightlike)",
             .spatial => "przestrzenny (tachionowy)",
         };
     }
@@ -113,7 +113,7 @@ pub const DiagonalForm = struct {
     }
 
     /// Is v a tachyon: opposite cone and nonzero norm.
-    /// To jest definicja NIEZMIENNICZA wobec wyboru znaku konwencji.
+    /// This definition is INVARIANT under the choice of sign convention.
     pub fn isTachyon(self: DiagonalForm, v: []const f64, tol: f64) bool {
         return self.classifyTol(v, tol) == .spatial;
     }
@@ -235,7 +235,7 @@ pub const DenseForm = struct {
         return self.dim * self.dim;
     }
 
-    /// Zgrubny licznik operacji dla Gauss–Jordana: O(n^3).
+    /// Rough operation count for Gauss-Jordan: O(n^3).
     pub fn mulCountInverse(self: DenseForm) usize {
         return 2 * self.dim * self.dim * self.dim;
     }
@@ -249,7 +249,7 @@ pub const DenseForm = struct {
 // Testy
 // ---------------------------------------------------------------------------
 
-test "obie reprezentacje dają identyczną formę" {
+test "both representations give the identical form" {
     const alloc = std.testing.allocator;
     const s = sig.minkowski_3_1;
     const diag = DiagonalForm{ .signature = s };
@@ -268,7 +268,7 @@ test "obie reprezentacje dają identyczną formę" {
     }
 }
 
-test "odwrotność gęsta == odwrotność diagonalna" {
+test "dense inverse equals diagonal inverse" {
     const alloc = std.testing.allocator;
     const s = sig.minkowski_3_1;
     const diag = DiagonalForm{ .signature = s };
@@ -300,7 +300,7 @@ test "odwrotność gęsta == odwrotność diagonalna" {
     }
 }
 
-test "klasyfikacja zależy od konwencji, nie od obiektu" {
+test "classification depends on the convention, not on the object" {
     const mm = DiagonalForm{ .signature = sig.minkowski_3_1 };
     const mp = DiagonalForm{ .signature = sig.minkowski_3_1_flipped };
 
@@ -319,7 +319,7 @@ test "klasyfikacja zależy od konwencji, nie od obiektu" {
     }
 }
 
-test "wymiar zdegenerowany blokuje odwrotność formy" {
+test "a degenerate dimension blocks the inverse of the form" {
     const f = DiagonalForm{ .signature = sig.degenerate_2_1_1 };
     const c = [_]f64{ 1, 1, 1, 1 };
     var out: [4]f64 = undefined;

@@ -227,7 +227,7 @@ pub fn reverseSparse(alloc: std.mem.Allocator, alg: Algebra, a: Sparse) !Sparse 
 ///
 /// This is the "maximally optimised" variant and it is the one used in
 /// benchmark T3 — comparing against the allocating version would be unfair to MRS.
-/// wobec MRS.
+/// against MRS-LAB.
 pub fn mulSparseScratch(alg: Algebra, a: Sparse, b: Sparse, scratch: []Term) Sparse {
     const need = a.terms.len * b.terms.len;
     std.debug.assert(scratch.len >= need);
@@ -441,11 +441,11 @@ pub const BladeTable = struct {
 // Testy
 // ---------------------------------------------------------------------------
 
-test "relacje definiujące algebry Clifforda" {
+test "defining relations of the Clifford algebra" {
     const alg = try Algebra.fromSignature(sig.minkowski_3_1);
     const n = alg.n_gen;
 
-    // e_i e_j = −e_j e_i dla i ≠ j
+    // e_i e_j = −e_j e_i for i ≠ j
     for (0..n) |i| {
         for (0..n) |j| {
             if (i == j) continue;
@@ -477,7 +477,7 @@ test "odtworzenie Cl(1,3) z Minkowskiego 3+1" {
     try std.testing.expectEqual(@as(i8, -1), alg_plus.squares[0]);
 }
 
-test "łączność mnożenia blatów (losowe trójki)" {
+test "associativity of blade multiplication (random triples)" {
     const alg = try Algebra.fromSignature(sig.two_times_2_1);
     var prng = std.Random.DefaultPrng.init(99);
     const rnd = prng.random();
@@ -491,7 +491,7 @@ test "łączność mnożenia blatów (losowe trójki)" {
         const left = bladeMul(alg, ab.mask, c);
         const right = bladeMul(alg, a, bc.mask);
         try std.testing.expectEqual(left.mask, right.mask);
-        // (ab)c = a(bc) jako elementy algebry: znak·e_mask
+        // (ab)c = a(bc) as algebra elements: sign·e_mask
         try std.testing.expectEqual(ab.sign * left.sign, bc.sign * right.sign);
     }
 }
@@ -503,7 +503,7 @@ test "generator nilpotentny: sygnatura zdegenerowana daje e_i² = 0" {
     try std.testing.expectEqual(@as(i8, 0), p.sign);
 }
 
-test "rzadki i gęsty iloczyn dają ten sam wynik" {
+test "sparse and dense products give the same result" {
     const alloc = std.testing.allocator;
     const alg = try Algebra.fromSignature(sig.minkowski_3_1);
 
@@ -534,16 +534,16 @@ test "rzadki i gęsty iloczyn dają ten sam wynik" {
     }
 }
 
-test "reverse: (e0*e1)~ = −e0*e1, wektor i skalar bez zmian" {
+test "reverse: (e0*e1)~ = −e0*e1, a vector and a scalar unchanged" {
     const alg = try Algebra.fromSignature(sig.minkowski_3_1);
     try std.testing.expectEqual(@as(i8, 1), alg.reverseSign(0b0000)); // skalar
-    try std.testing.expectEqual(@as(i8, 1), alg.reverseSign(0b0001)); // wektor
+    try std.testing.expectEqual(@as(i8, 1), alg.reverseSign(0b0001)); //     try std.testing.expectEqual(@as(i8, 1), alg.reverseSign(0b0001)); // vector
     try std.testing.expectEqual(@as(i8, -1), alg.reverseSign(0b0011)); // biwektor
     try std.testing.expectEqual(@as(i8, -1), alg.reverseSign(0b0111)); //     try std.testing.expectEqual(@as(i8, -1), alg.reverseSign(0b0111)); // trivector
-    try std.testing.expectEqual(@as(i8, 1), alg.reverseSign(0b1111)); // 4-wektor
+    try std.testing.expectEqual(@as(i8, 1), alg.reverseSign(0b1111)); //     try std.testing.expectEqual(@as(i8, 1), alg.reverseSign(0b1111)); // 4-vector
 }
 
-test "wersja bez alokacji zgadza się z wersją alokującą" {
+test "the allocation-free variant agrees with the allocating one" {
     const alloc = std.testing.allocator;
     const alg = try Algebra.fromSignature(sig.minkowski_3_1);
 
@@ -571,14 +571,14 @@ test "wersja bez alokacji zgadza się z wersją alokującą" {
     }
 }
 
-test "wybór strategii: rzadkie wygrywa, gęste nie" {
+test "strategy choice: sparse wins, dense does not" {
     // n = 12 → 4096 coefficients, 4^n = 16.7M
     const basis = @as(usize, 1) << 12;
     try std.testing.expectEqual(Strategy.sparse, chooseStrategy(4, 4, basis, 1.0));
     try std.testing.expectEqual(Strategy.dense, chooseStrategy(basis, basis, basis, 1.0));
 }
 
-test "tabela blatów zgadza się z iloczynem bezpośrednim" {
+test "the blade table agrees with the direct product" {
     const alloc = std.testing.allocator;
     const alg = try Algebra.fromSignature(sig.minkowski_1_1);
     const table = try buildBladeTable(alloc, alg);

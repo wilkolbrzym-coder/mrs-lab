@@ -1,45 +1,45 @@
-//! MRS-0.1 :: P2 — multyplikatywność normy
+//! MRS-LAB :: P2 — multiplicativity of the norm
 //!
-//! PYTANIE (rozłożone na trzy predykaty, bo w szkicu projektu było jedno
-//! i było wewnętrznie sprzeczne):
+//! QUESTION (split into three predicates, because the project draft had one
+//! and it was internally contradictory):
 //!
 //!   P2a  N_sc(x·y) = N_sc(x)·N_sc(y),  gdzie N_sc(z) = Sc(z·z̄)
-//!   P2b  (x·y)·conj(x·y) = (x·conj x)·(y·conj y)   (tożsamość w centrum)
-//!   P2c  czy z ↦ z·z̄ zawsze trafia w centrum? (sensowność P2b)
+//!   P2b  (x·y)·conj(x·y) = (x·conj x)·(y·conj y)   (an identity in the centre)
+//!   P2c  does z ↦ z·z̄ always land in the centre? (well-posedness of P2b)
 //!
-//! WYNIK ZMIERZONY: P2c zachodzi dokładnie dla 2^n <= 8 (n <= 3) i pada od
-//! n = 4. Świadek w Cl(1,3): x = e01 + e23, bo e01 i e23 są rozłączne i
-//! komutują, więc x·x̄ zawiera człon 2·e0123, a e0123 nie jest centralny.
-//! To jest ta sama granica co dla multyplikatywności — i to nie przypadek:
-//! od n = 4 mapa z ↦ z·z̄ przestaje trafiać w centrum, więc struktura
-//! multyplikatywnej normy nie ma gdzie powstać.
+//! MEASURED RESULT: P2c holds exactly for 2^n <= 8 (n <= 3) and fails from
+//! n = 4. Witness in Cl(1,3): x = e01 + e23, because e01 and e23 are disjoint
+//! and commute, so x·x̄ carries the term 2·e0123, and e0123 is not central.
+//! That is the same boundary as for multiplicativity — and not by accident:
+//! from n = 4 the map z ↦ z·z̄ stops landing in the centre, so there is no
+//! room for a multiplicative norm structure to exist.
 //!
 //! ---------------------------------------------------------------------------
-//! TO JEST PROCEDURA ROZSTRZYGAJĄCA, NIE PRÓBKOWANIE
+//! THIS IS A DECISION PROCEDURE, NOT SAMPLING
 //! ---------------------------------------------------------------------------
-//! Kluczowa obserwacja: każda z tych tożsamości jest, przy ustalonym y,
-//! **funkcją kwadratową** x (złożenie odwzorowania liniowego z formą
-//! kwadratową), i symetrycznie — przy ustalonym x jest funkcją kwadratową y.
-//! A funkcja kwadratowa (także z wyrazem liniowym) jest jednoznacznie
-//! wyznaczona przez wartości na zbiorze
+//! Key observation: for fixed y each of these identities is a **quadratic
+//! function** of x (a linear map composed with a quadratic form), and
+//! symmetrically, it is a quadratic function of y for fixed x. A quadratic
+//! function (including a linear term) is uniquely determined by its values on
+//! determined by its values on the set
 //!
 //!     D = {0} ∪ {e_i} ∪ {e_i + e_j : i < j},
 //!
-//! bo z Q(0), Q(e_i) i Q(e_i+e_j) odczytujemy wszystkie współczynniki
-//! kombinacji a_i + c_ii oraz c_ij. Wobec tego:
+//! because from Q(0), Q(e_i) and Q(e_i+e_j) we read off all coefficients
+//! combinations a_i + c_ii and c_ij. Therefore:
 //!
-//!     tożsamość zachodzi dla wszystkich x, y  ⟺  zachodzi dla (x,y) ∈ D×D.
+//!     the identity holds for all x, y  ⟺  it holds for (x,y) in D×D.
 //!
-//! To nie jest „dużo testów". To jest **dowód wyczerpujący** dla tej klasy
-//! tożsamości, w arytmetyce całkowitej, bez tolerancji i bez prawdopodobieństwa.
-//! Dlatego wynik wolno nazwać rozstrzygnięciem, a nie poszlaką.
+//! That is not "a lot of tests". It is an **exhaustive proof** for this class
+//! of identities, in integer arithmetic, with no tolerance and no probability.
+//! That is why the result may be called a decision rather than evidence.
 //!
 //! ZAKRES. Silnik rozstrzyga o ILOCZYNIE CLIFFORDA w danej sygnaturze.
 //! Nie rozstrzyga pytania „czy na tej przestrzeni istnieje JAKIEKOLWIEK
-//! mnożenie z multyplikatywną normą" — a to drugie pytanie obejmuje oktoniony,
-//! które NIE są algebrą Clifforda (Clifford jest łączna, oktoniony nie).
-//! Dlatego granica Hurwitza (1,2,4,8) nie może wyjść z tego silnika w całości:
-//! wymiar 8 w rodzinie Clifforda to Cl(0,3) ≅ H⊕H, a nie oktoniony.
+//! multiplication with a multiplicative norm" — and that second question
+//! includes the octonions, which are NOT a Clifford algebra (Clifford is
+//! associative, the octonions are not). Hence the Hurwitz bound (1,2,4,8)
+//! dimension 8 in the Clifford family is Cl(0,3) ≅ H⊕H, not the octonions.
 
 const std = @import("std");
 const mrs = @import("mrs");
@@ -49,7 +49,7 @@ const sigs = @import("signatures.zig");
 
 const IntVec = exact.IntVec;
 
-/// Pełny rozmiar zbioru determinującego dla n = 5.
+/// Full size of the determining set for n = 5.
 pub const MAX_GRID: usize = 1 + 32 + (32 * 31) / 2; // 529
 
 pub const Kind = enum { scalar_multiplicative, center_multiplicative, norm_is_central };
@@ -60,7 +60,7 @@ pub const Verdict = struct {
     grid_size: usize,
     pairs: usize,
     holds: bool,
-    /// Świadek zaprzeczenia (tylko gdy `holds == false`).
+    ///     /// Witness of a refutation (only when `holds == false`).
     witness_x: IntVec = IntVec{},
     witness_y: IntVec = IntVec{},
     has_witness: bool = false,
@@ -69,13 +69,13 @@ pub const Verdict = struct {
         return switch (self.kind) {
             .scalar_multiplicative => "P2a  N_sc(xy) = N_sc(x)·N_sc(y)",
             .center_multiplicative => "P2b  (xy)·conj(xy) = (x·conj x)(y·conj y)",
-            .norm_is_central => "P2c  z·z̄ ∈ centrum dla każdego z",
+            .norm_is_central => "P2c  z·z̄ in the centre for every z",
         };
     }
 };
 
-/// Buduje zbiór determinujący D = {0} ∪ {e_i} ∪ {e_i+e_j}.
-/// `out` musi mieć co najmniej MAX_GRID miejsc; zwraca użyty rozmiar.
+/// Builds the determining set D = {0} ∪ {e_i} ∪ {e_i+e_j}.
+/// `out` must have at least MAX_GRID slots; returns the size used.
 pub fn buildGrid(alg: cl.Algebra, out: *[MAX_GRID]IntVec) usize {
     const m = alg.basisCount();
     var k: usize = 0;
@@ -101,9 +101,9 @@ fn normOf(x: IntVec, alg: cl.Algebra) IntVec {
     return exact.mul(alg, x, exact.conj(x, m));
 }
 
-/// Sprawdza P2c: czy z·z̄ leży w centrum dla każdego z.
-/// Centralność jest warunkiem liniowym, a z·z̄ jest kwadratowe w z,
-/// więc zbiór D znowu wystarcza.
+/// Checks P2c: does z·z̄ lie in the centre for every z?
+/// Centrality is a linear condition and z·z̄ is quadratic in z, so the
+/// determining set D again suffices.
 pub fn checkNormIsCentral(alg: cl.Algebra, grid: *[MAX_GRID]IntVec) Verdict {
     const k = buildGrid(alg, grid);
     const m = alg.basisCount();
@@ -170,7 +170,7 @@ pub fn checkScalarMultiplicative(alg: cl.Algebra, grid: *[MAX_GRID]IntVec) Verdi
     };
 }
 
-/// Sprawdza P2b: tożsamość wektorowa w centrum.
+/// Checks P2b: the vector identity in the centre.
 pub fn checkCenterMultiplicative(alg: cl.Algebra, grid: *[MAX_GRID]IntVec) Verdict {
     const k = buildGrid(alg, grid);
     const m = alg.basisCount();
@@ -210,8 +210,8 @@ inline fn exact_mul(a: i64, b: i64) i64 {
     return std.math.mul(i64, a, b) catch @panic("MRS explore: overflow w P2");
 }
 
-/// Zbiór determinujący jest kompletny — to kontrakt tej warstwy.
-/// Zwraca rozmiar dla danej liczby blatów.
+/// The determining set is complete — that is the contract of this layer.
+/// Returns the size for a given number of blades.
 pub fn gridSize(basis_count: usize) usize {
     return 1 + basis_count + (basis_count * (basis_count - 1)) / 2;
 }
@@ -220,7 +220,7 @@ pub fn gridSize(basis_count: usize) usize {
 // Testy
 // ---------------------------------------------------------------------------
 
-test "rozmiar siatki zgadza się z faktycznie zbudowaną" {
+test "the grid size matches the one actually built" {
     var grid: [MAX_GRID]IntVec = undefined;
     var buf: [64]sigs.Triple = undefined;
     const n = sigs.enumerateTriples(&buf, sigs.MAX_TOTAL);
@@ -232,7 +232,7 @@ test "rozmiar siatki zgadza się z faktycznie zbudowaną" {
     }
 }
 
-test "P2a: prawda dla n <= 2 w OBU konwencjach" {
+test "P2a: true for n <= 2 in BOTH conventions" {
     var grid: [MAX_GRID]IntVec = undefined;
     inline for (.{ .mostly_minus, .mostly_plus }) |ts| {
         for ([_]sigs.Triple{
@@ -251,25 +251,25 @@ test "P2a: prawda dla n <= 2 w OBU konwencjach" {
     }
 }
 
-test "P2a: fałsz od n = 3 — silnik podaje świadka" {
+test "P2a: false from n = 3 — the engine produces a witness" {
     var grid: [MAX_GRID]IntVec = undefined;
     const alg = try (sigs.SigBuf.build(.{ .p = 1, .q = 2 }, .mostly_minus)).algebra();
     const v = checkScalarMultiplicative(alg, &grid);
     try std.testing.expect(!v.holds);
     try std.testing.expect(v.has_witness);
-    // świadek musi faktycznie łamać tożsamość
+    // the witness must actually break the identity
     const nx = exact.scalarPart(normOf(v.witness_x, alg));
     const ny = exact.scalarPart(normOf(v.witness_y, alg));
     const nxy = exact.scalarPart(normOf(exact.mul(alg, v.witness_x, v.witness_y), alg));
     try std.testing.expect(nxy != exact_mul(nx, ny));
 }
 
-test "P2c: z·z̄ trafia w centrum DOKŁADNIE dla 2^n <= 8" {
+test "P2c: z·z̄ lands in the centre EXACTLY for 2^n <= 8" {
     var grid: [MAX_GRID]IntVec = undefined;
     var buf: [64]sigs.Triple = undefined;
     const n = sigs.enumerateTriples(&buf, sigs.MAX_TOTAL);
 
-    // n <= 3 (2^n <= 8): zachodzi dla KAŻDEJ sygnatury i konwencji
+    // n <= 3 (2^n <= 8): holds for EVERY signature and convention
     var low: usize = 0;
     for (0..n) |i| {
         if (buf[i].n() > 3) continue;
@@ -277,51 +277,51 @@ test "P2c: z·z̄ trafia w centrum DOKŁADNIE dla 2^n <= 8" {
         const a_minus = try (sigs.SigBuf.build(buf[i], .mostly_minus)).algebra();
         const a_plus = try (sigs.SigBuf.build(buf[i], .mostly_plus)).algebra();
         if (!checkNormIsCentral(a_minus, &grid).holds) {
-            std.debug.print("P2c pada dla n<=3: triple=({d},{d},{d}) minus\n", .{ buf[i].p, buf[i].q, buf[i].r });
+            std.debug.print("P2c fails for n<=3: triple=({d},{d},{d}) minus\n", .{ buf[i].p, buf[i].q, buf[i].r });
             return error.TestUnexpectedResult;
         }
         if (!checkNormIsCentral(a_plus, &grid).holds) {
-            std.debug.print("P2c pada dla n<=3: triple=({d},{d},{d}) plus\n", .{ buf[i].p, buf[i].q, buf[i].r });
+            std.debug.print("P2c fails for n<=3: triple=({d},{d},{d}) plus\n", .{ buf[i].p, buf[i].q, buf[i].r });
             return error.TestUnexpectedResult;
         }
     }
     try std.testing.expect(low > 0);
 
-    // n = 4: pada, i to jest wynik, nie usterka. Świadek konstrukcyjny:
-    // x = e01 + e23 w Cl(1,3), bo e01 i e23 są rozłączne i komutują,
-    // więc x·x̄ zawiera człon 2·e0123, a e0123 NIE jest centralny
-    // (środkiem Cl(1,3) jest samo R).
+    // n = 4: it fails, and that is a result, not a defect. Constructive witness:
+    // x = e01 + e23 in Cl(1,3), because e01 and e23 are disjoint and commute,
+    // so x·x̄ carries the term 2·e0123, and e0123 is NOT central
+    // (the centre of Cl(1,3) is R itself).
     const alg = try (sigs.SigBuf.build(.{ .p = 1, .q = 3 }, .mostly_minus)).algebra();
     const v = checkNormIsCentral(alg, &grid);
     try std.testing.expect(!v.holds);
     try std.testing.expect(v.has_witness);
 
-    // sprawdzamy świadka ręcznie: e01 = maska 3, e23 = maska 12
+    // check the witness by hand: e01 = mask 3, e23 = mask 12
     const e01 = IntVec.basis(3);
     const e23 = IntVec.basis(12);
     const xx = exact.add(e01, e23); // x = e01 + e23
     const nz = normOf(xx, alg);
-    try std.testing.expect(nz.c[15] != 0); // człon przy e0123 (maska 15)
+    try std.testing.expect(nz.c[15] != 0); //     try std.testing.expect(nz.c[15] != 0); // the e0123 term (mask 15)
     try std.testing.expectEqual(@as(u5, 1), exact.dimOfSet(exact.centerBasis(alg)));
 
-    // dla n = 3 ten sam mechanizm NIE psuje centralności, bo e012 jest centralny
+    // for n = 3 the same mechanism does NOT break centrality, because e012 is central
     const alg3 = try (sigs.SigBuf.build(.{ .p = 1, .q = 2 }, .mostly_minus)).algebra();
     const v3 = checkNormIsCentral(alg3, &grid);
     try std.testing.expect(v3.holds);
     try std.testing.expectEqual(@as(u5, 2), exact.dimOfSet(exact.centerBasis(alg3)));
 }
 
-test "DECYZJA jest kompletna: wykrywa złamanie poza siatką" {
-    // Bierzemy świadka z siatki i sprawdzamy, że naprawdę łamie tożsamość
-    // dla punktów spoza siatki też — to test, że metoda nie jest sztuczką
-    // zależną od wyboru D.
+test "the DECISION is complete: it finds a violation outside the grid" {
+    // Take a witness from the grid and check that it really breaks the identity
+    // for points outside the grid as well — this tests that the method is not an
+    // artefact of the choice of D.
     var grid: [MAX_GRID]IntVec = undefined;
     const alg = try (sigs.SigBuf.build(.{ .p = 0, .q = 3 }, .mostly_minus)).algebra();
     const v = checkScalarMultiplicative(alg, &grid);
     try std.testing.expect(!v.holds);
 
-    // losowy punkt spoza siatki: tożsamość musi padać dla ogromnej
-    // większości punktów (gdyby padała tylko na D, metoda byłaby fałszywa)
+    // random point outside the grid: the identity must fail for the vast majority
+    // of points (if it failed only on D, the method would be unsound)
     var prng = std.Random.DefaultPrng.init(1234);
     const rnd = prng.random();
     const m = alg.basisCount();
@@ -339,11 +339,11 @@ test "DECYZJA jest kompletna: wykrywa złamanie poza siatką" {
         const nxy = exact.scalarPart(normOf(exact.mul(alg, x, y), alg));
         if (nxy != exact_mul(nx, ny)) fails += 1;
     }
-    // nie wymagamy 100% — wymagamy, by złamanie było regułą, a nie wyjątkiem
+    // we do not require 100% — only that failure is the rule, not the exception
     try std.testing.expect(fails * 2 > trials);
 }
 
-test "P2a zależy od konwencji znaku tylko przez trójkę — wynik ten sam" {
+test "P2a depends on the sign convention only through the triple — same result" {
     var grid: [MAX_GRID]IntVec = undefined;
     var buf: [64]sigs.Triple = undefined;
     const n = sigs.enumerateTriples(&buf, sigs.MAX_TOTAL);
@@ -359,24 +359,24 @@ test "P2a zależy od konwencji znaku tylko przez trójkę — wynik ten sam" {
 }
 
 // ---------------------------------------------------------------------------
-// REGUŁY ZNALEZIONE PRZEZ SILNIK — utrwalone jako sprawdzalne twierdzenia
+// RULES DISCOVERED BY THE ENGINE — recorded as checkable theorems
 // ---------------------------------------------------------------------------
 //
-// Silnik nie został tak zaprogramowany. Te dwie reguły WYSZŁY z tabeli,
-// a te testy zamieniają obserwację w twierdzenie sprawdzane przy każdej
-// zmianie kodu. Dla każdej reguły podajemy też szkic dowodu.
+// The engine was not programmed with these. They EMERGED from the table, and
+// these tests turn the observation into a theorem that is checked on every
+// change of the code. A proof sketch is given for each rule.
 
-test "REGUŁA 1: P2a zachodzi dokładnie gdy p+q <= 2 (zdegenerowane niewidoczne)" {
-    // DLACZEGO TAK JEST. Cl(p,q,r) ≅ Cl(p,q) ⊗ ⋀(R), gdzie R to radykał.
-    // Część skalarna normy widzi wyłącznie Cl(p,q):
-    //   * iloczyn dwóch różnych blatów nigdy nie daje skalara (e_A·e_B = ±e_{A△B});
-    //   * iloczyn e_A·e_A daje skalar równy iloczynowi s_i po A, a ten jest
-    //     ZEREM, gdy A zawiera generator zdegenerowany.
-    // Zatem N_sc(x) = (współczynnik skalarny x)². Stąd
+test "RULE 1: P2a holds exactly when p+q <= 2 (degenerate dimensions invisible)" {
+    // WHY THIS IS SO. Cl(p,q,r) ≅ Cl(p,q) ⊗ Λ(R), where R is the radical.
+    // The scalar part of the norm sees only Cl(p,q):
+    //   * the product of two distinct blades is never a scalar (e_A·e_B = ±e_{A△B});
+    //   * the product e_A·e_A is the product of the s_i over A, and that is ZERO
+    //     //     ZERO, when A contains a degenerate generator.
+    // Hence N_sc(x) = (scalar coefficient of x)². Therefore
     //   N_sc(xy) = (c0(x)·c0(y))² = N_sc(x)·N_sc(y),
-    // czyli przy r > 0 tożsamość zachodzi TOŻSAMOŚCIOWO, niezależnie od Cl(p,q).
+    // so for r > 0 the identity holds IDENTICALLY, independently of Cl(p,q).
     // Dla r = 0 pozostaje klasyczna granica Hurwitza w rodzinie Clifforda:
-    // multyplikatywność jest wtedy i tylko wtedy, gdy 2^(p+q) <= 4.
+    // multiplicativity holds exactly when 2^(p+q) <= 4.
     var grid: [MAX_GRID]IntVec = undefined;
     var buf: [64]sigs.Triple = undefined;
     const n = sigs.enumerateTriples(&buf, sigs.MAX_TOTAL);
@@ -393,7 +393,7 @@ test "REGUŁA 1: P2a zachodzi dokładnie gdy p+q <= 2 (zdegenerowane niewidoczne
         const predicted = (@as(usize, t.p) + @as(usize, t.q)) <= 2;
         if (holds != predicted) {
             std.debug.print(
-                "REGUŁA 1 złamana: t=({d},{d},{d}) p+q={d} zmierzone={} przewidziane={}\n",
+                "RULE 1 broken: t=({d},{d},{d}) p+q={d} measured={} predicted={}\n",
                 .{ t.p, t.q, t.r, @as(usize, t.p) + @as(usize, t.q), holds, predicted },
             );
             return error.TestUnexpectedResult;
@@ -403,7 +403,7 @@ test "REGUŁA 1: P2a zachodzi dokładnie gdy p+q <= 2 (zdegenerowane niewidoczne
     try std.testing.expect(degenerate_seen >= 15);
 }
 
-test "REGUŁA 2: P2c zachodzi dokładnie gdy 2^n <= 8" {
+test "RULE 2: P2c holds exactly when 2^n <= 8" {
     var grid: [MAX_GRID]IntVec = undefined;
     var buf: [64]sigs.Triple = undefined;
     const n = sigs.enumerateTriples(&buf, sigs.MAX_TOTAL);
@@ -417,7 +417,7 @@ test "REGUŁA 2: P2c zachodzi dokładnie gdy 2^n <= 8" {
         const predicted = t.n() <= 3;
         if (holds != predicted) {
             std.debug.print(
-                "REGUŁA 2 złamana: t=({d},{d},{d}) n={d} zmierzone={} przewidziane={}\n",
+                "RULE 2 broken: t=({d},{d},{d}) n={d} measured={} predicted={}\n",
                 .{ t.p, t.q, t.r, t.n(), holds, predicted },
             );
             return error.TestUnexpectedResult;
@@ -426,11 +426,11 @@ test "REGUŁA 2: P2c zachodzi dokładnie gdy 2^n <= 8" {
     try std.testing.expect(checked >= 30);
 }
 
-test "P2b różni się od P2a; P2b == P2c w zakresie (obserwacja, nie twierdzenie)" {
-    // Po co trzy predykaty? Bo dają różne odpowiedzi — a gdyby nie dawały,
-    // rozdzielenie P2 byłoby zbędne. Ten test pilnuje, że różnica P2a vs P2b
-    // jest realna, i ODNOTOWUJE (bez dowodu), że P2b i P2c pokrywają się
-    // na całym przebadanym zakresie n <= 4. Tego drugiego nie udajemy
+test "P2b differs from P2a; P2b == P2c in range (observation, not a theorem)" {
+    // Why three predicates? Because they give different answers — if they did not,
+    // splitting P2 would be pointless. This test guards that the P2a vs P2b
+    // difference is real, and RECORDS (without proof) that P2b and P2c agree over
+    // the whole tested range n <= 4. The second is not claimed as a theorem.
     // twierdzeniem: to wzorzec do zbadania, wpisany do docs/09_open.md.
     var grid: [MAX_GRID]IntVec = undefined;
     var buf: [64]sigs.Triple = undefined;
@@ -451,12 +451,12 @@ test "P2b różni się od P2a; P2b == P2c w zakresie (obserwacja, nie twierdzeni
         }
         if (c != b) differ_c += 1;
     }
-    // P2a i P2b MUSZĄ się różnić — inaczej rozdzielenie predykatów jest puste.
+    // P2a and P2b MUST differ — otherwise splitting the predicates is empty.
     try std.testing.expect(differ_a > 0);
     std.debug.print(
         "P2a != P2b w {d} sygnaturach (np. ({d},{d},{d})); P2b != P2c w {d}\n",
         .{ differ_a, witness_a.p, witness_a.q, witness_a.r, differ_c },
     );
-    // Obserwacja bez dowodu: P2b i P2c zgadzają się na całym zakresie.
+    // Observation without proof: P2b and P2c agree over the whole range.
     try std.testing.expectEqual(@as(usize, 0), differ_c);
 }

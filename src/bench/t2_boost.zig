@@ -1,23 +1,23 @@
-//! MRS :: teza T2 — składanie boostów
+//! MRS-LAB :: thesis T2 — composing boosts
 //!
-//! Hipoteza: w reprezentacji split-complex rapidyta jest współrzędną
-//! addytywną, więc złożenie N boostów w jednej płaszczyźnie kosztuje N
-//! dodawań. W reprezentacji macierzowej trzeba albo mnożyć macierze
-//! (8 mnożeń na krok), albo wyłuskać rapidytę funkcją odwrotną (atanh).
+//! Hypothesis: in the split-complex representation the rapidity is an additive
+//! coordinate, so composing N boosts in one plane costs N additions. In the
+//! matrix representation one must either multiply matrices (8 multiplications
+//! per step) or extract the rapidity through the inverse function (atanh).
 //!
-//! Baseline'y (wszystkie zoptymalizowane, macierze policzone z góry):
-//!   B1  łańcuch iloczynów macierzy 2×2         — 8 mnożeń + 4 dodawania / krok
-//!   B2  wyłuskanie rapidyty przez atanh + sumowanie — 1 transcendentna / krok
+//! Baselines (all optimised, matrices precomputed):
+//!   B1  chain of 2x2 matrix products       — 8 multiplications + 4 additions / step
+//!   B2  rapidity extraction via atanh + summation — 1 transcendental / step
 //!
 //! Warianty MRS:
 //!   M1  akumulacja rapidyty                     — 1 dodawanie / krok
-//!   M2  łańcuch iloczynów split-complex         — 4 mnożenia + 2 dodawania / krok
+//!   M2  chain of split-complex products    — 4 multiplications + 2 additions / step
 //!
-//! Dodatkowo mierzymy DRYF. Macierzowa reprezentacja grupy kumuluje błąd
-//! zaokrągleń jak O(N·eps), a w dodatku nie da się na niej zastosować
-//! sumowania kompensowanego, bo iloczyn macierzy nie jest dodawaniem.
-//! W MRS rapidyta jest liczbą, więc Kahan działa — i to jest różnica
-//! jakościowa, nie tylko stała wydajnościowa.
+//! We also measure DRIFT. The matrix representation of the group accumulates
+//! rounding error like O(N·eps), and on top of that compensated summation cannot
+//! compensated summation, because a matrix product is not an addition.
+//! In MRS-LAB the rapidity is a number, so Kahan works — and that is a difference
+//! in kind, not just in constant factor.
 
 const std = @import("std");
 const mrs = @import("mrs");
@@ -26,8 +26,8 @@ const h = @import("harness.zig");
 const Io = std.Io;
 const Z = mrs.split_complex.Z;
 
-/// Sumowanie kompensowane Kahan–Neumaier. Sensowne wyłącznie wtedy, gdy
-/// istnieje współrzędna addytywna — czyli wyłącznie w MRS.
+/// Kahan–Neumaier compensated summation. Meaningful only when an additive
+/// coordinate exists — that is, only in MRS-LAB.
 pub fn kahanSum(xs: []const f64) f64 {
     var sum: f64 = 0;
     var c: f64 = 0;
@@ -70,11 +70,11 @@ fn runMrsRapidityKahan(c: *Ctx) void {
     std.mem.doNotOptimizeAway(c.theta_acc);
 }
 
-/// Baseline "najlepsza znana zwykła matematyka": trzymamy rapidytę jako
-/// zwykłą zmienną f64 i dodajemy. Ta funkcja jest CELOWO identyczna
-/// z `runMrsRapidity` — i to jest wynik, a nie przeoczenie. Najszybsza
-/// znana metoda z matematyki klasycznej jest tu dosłownie tym samym
-/// kodem, co metoda MRS, więc stosunek wychodzi 1,00×.
+/// Baseline "best known classical mathematics": keep the rapidity as an ordinary
+/// f64 variable and add. This function is DELIBERATELY identical to
+/// with `runMrsRapidity` — and that is the result, not an oversight. The fastest
+/// best known classical method here is literally the same code as the MRS-LAB
+/// method, so the ratio comes out at 1.00x.
 fn runKnownBestRapidity(c: *Ctx) void {
     var acc: f64 = 0;
     for (c.thetas) |th| acc += th;
@@ -129,20 +129,20 @@ pub const Drift = struct {
     mrs_kahan_inv_err: f64,
     /// |N(z) − 1| przy sumowaniu naiwnym.
     mrs_plain_inv_err: f64,
-    /// max |m_ij − macierz_analityczna| dla łańcucha macierzy.
+    ///     /// max |m_ij − analytic matrix| for the matrix chain.
     matrix_elem_err: f64,
-    /// |det m − 1| dla łańcucha macierzy (niezmiennik Lorentza).
+    ///     /// |det m − 1| for the matrix chain (Lorentz invariant).
     matrix_det_err: f64,
-    /// |rapidity(m) − Σθ| dla łańcucha macierzy.
+    ///     /// |rapidity(m) − Σθ| for the matrix chain.
     matrix_rapidity_err: f64,
-    /// |Σθ naiwnie − Σθ Kahana|, czyli własny błąd sumowania rapidyty.
+    ///     /// |Σθ plain − Σθ Kahan|, i.e. the summation error of the rapidity itself.
     rapidity_sum_err: f64,
 };
 
-/// Łańcuch N boostów o USTALONEJ rapidycie całkowitej. Normalizacja jest
-/// konieczna, żeby pomiar izolował AKUMULACJĘ błędu, a nie warunkowanie
+/// A chain of N boosts with a FIXED total rapidity. Normalisation is necessary
+/// so that the measurement isolates the ACCUMULATION of error rather than the
 /// mapy θ → (cosh θ, sinh θ) — to drugie mierzymy osobno w
-/// `conditioningOfRapidityMap`, bo to zupełnie inne zjawisko.
+/// `conditioningOfRapidityMap`, because that is a different phenomenon.
 pub fn measureDrift(alloc: std.mem.Allocator, n: usize) !Drift {
     const thetas = try alloc.alloc(f64, n);
     defer alloc.free(thetas);
@@ -159,11 +159,11 @@ pub fn measureDrift(alloc: std.mem.Allocator, n: usize) !Drift {
     const theta_kahan = kahanSum(thetas);
     const theta_plain = plainSum(thetas);
 
-    // MRS: rapidyta jako współrzędna
+    // MRS: the rapidity as the coordinate
     const z_kahan = Z.fromRapidity(theta_kahan);
     const z_plain = Z.fromRapidity(theta_plain);
 
-    // baseline: łańcuch iloczynów macierzy 2×2
+    // baseline: chain of 2x2 matrix products
     var m0: f64 = 1;
     var m1: f64 = 0;
     var m2: f64 = 0;
@@ -200,10 +200,10 @@ pub fn measureDrift(alloc: std.mem.Allocator, n: usize) !Drift {
     };
 }
 
-/// Warunkowanie mapy θ → (cosh θ, sinh θ): jak dokładnie reprezentacja
+/// Conditioning of the map θ → (cosh θ, sinh θ): how accurately the
 /// multyplikatywna trzyma niezmiennik N(z) = cosh²θ − sinh²θ = 1.
-/// Błąd rośnie jak e^{2|θ|}·eps, bo cosh² i sinh² to dwie ogromne liczby,
-/// których różnica jest mała — klasyczne znoszenie.
+/// The error grows like e^{2|θ|}·eps, because cosh² and sinh² are two huge
+/// numbers whose difference is small — classic cancellation.
 pub fn conditioningOfRapidityMap(theta: f64) f64 {
     const z = Z.fromRapidity(theta);
     return @abs(Z.norm(z) - 1.0);
@@ -289,7 +289,7 @@ pub fn run(
         try w.writeAll(" | ");
         try w.print("{d:.1}×", .{h.speedup(atanh_op, rap_op)});
         try w.writeAll(" |\n");
-        // zapamiętujemy stosunek MRS do najlepszej znanej metody
+        // remember the ratio of MRS to the best known method
         best_ratio_sum += h.speedup(best_op, rap_op);
         best_ratio_n += 1;
         _ = &best_ratio_sum;
@@ -382,7 +382,7 @@ test "all boost composition variants give the same group element" {
     // MRS: rapidyta
     const z = Z.fromRapidity(kahanSum(thetas));
 
-    // baseline: łańcuch macierzy
+    // baseline: matrix chain
     var m0: f64 = 1;
     var m1: f64 = 0;
     var m2: f64 = 0;
@@ -406,30 +406,30 @@ test "all boost composition variants give the same group element" {
     try std.testing.expectApproxEqAbs(z.im, std.math.sinh(exact), 1e-14);
 }
 
-test "drift: MRS nie akumuluje błędu, macierz akumuluje dyfuzyjnie" {
+test "drift: MRS does not accumulate error, the matrix accumulates diffusively" {
     const alloc = std.testing.allocator;
     const d3 = try measureDrift(alloc, 1_000);
     const d5 = try measureDrift(alloc, 100_000);
 
-    // MRS: błąd składania rapidyty nie zależy od N (współrzędna addytywna)
+    // MRS: the composition error of the rapidity does not depend on N (additive coordinate)
     try std.testing.expect(d3.mrs_kahan_inv_err < 1e-13);
     try std.testing.expect(d5.mrs_kahan_inv_err < 1e-13);
 
-    // macierz: błąd rośnie. Tempo jest DYFUZYJNE (~√N), a nie liniowe,
-    // bo błędy zaokrągleń każdego kroku są w przybliżeniu niezależne.
-    // Dla N różniących się 100× oczekujemy ~10× wzrostu błędu.
+    // matrix: the error grows. The growth is DIFFUSIVE (~sqrt(N)), not linear,
+    // because the rounding errors of successive steps are approximately independent.
+    // For N differing by 100x we expect roughly 10x growth of the error.
     try std.testing.expect(d5.matrix_elem_err > d3.matrix_elem_err * 5.0);
     try std.testing.expect(d5.matrix_elem_err > 1e-14);
 }
 
-test "warunkowanie mapy rapidyty psuje się dla dużych |θ|" {
+test "the conditioning of the rapidity map breaks down for large |θ|" {
     try std.testing.expect(conditioningOfRapidityMap(1.0) < 1e-15);
     try std.testing.expect(conditioningOfRapidityMap(50.0) > 1e-9);
     try std.testing.expect(conditioningOfRapidityMap(200.0) > 1e-3);
 }
 
 test "Kahan beats plain summation on asymmetric terms" {
-    // Celowo zły przypadek: duże składniki i drobne dokładki.
+    // Deliberately bad case: large terms and small corrections.
     var xs: [2002]f64 = undefined;
     xs[0] = 1e16;
     for (1..2001) |i| xs[i] = 1.0;

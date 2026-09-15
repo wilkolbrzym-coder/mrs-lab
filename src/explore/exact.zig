@@ -1,21 +1,21 @@
-//! MRS-0.1 :: dokładna arytmetyka multivektorów (liczby całkowite)
+//! MRS-LAB :: exact multivector arithmetic (integers)
 //!
-//! Cała warstwa algebraiczna MRS jest całkowita: znaki e_i² należą do
-//! {+1,−1,0}, a iloczyn dwóch blatów jest z dokładnością do znaku pojedynczym
-//! blatem (e_A·e_B = ±e_{A△B}). Dzięki temu pytania algebraiczne można
-//! rozstrzygać w arytmetyce DOKŁADNEJ, bez tolerancji i bez zmiennoprzecinkowych
-//! wątpliwości. To nie jest optymalizacja — to jest warunek sensowności
-//! wyników: twierdzenie o wielomianie nie może zależeć od zaokrągleń.
+//! The whole algebraic layer of MRS-LAB is integral: the signs e_i² belong to
+//! {+1,-1,0}, and the product of two blades is, up to sign, a single blade
+//! (e_A·e_B = ±e_{A△B}). Algebraic questions can therefore be DECIDED in exact
+//! arithmetic, without tolerance and without floating point doubt. This is not
+//! an optimisation — it is a condition for the results to be meaningful: a
+//! statement about polynomials cannot depend on rounding.
 //!
-//! STABILNOŚĆ. Arytmetyka używa `std.math.add`/`std.math.mul`, czyli przy
-//! przekroczeniu zakresu następuje JAWNA panika z komunikatem, a nie
-//! ciche przekręcenie (UB w ReleaseFast). Współczynniki w tej warstwie są
-//! rzędów kilku–kilkudziesięciu, więc i64 ma zapas rzędu 10^17; panika jest
-//! wyłącznie siatką bezpieczeństwa na wypadek nadużycia API.
+//! STABILITY. The arithmetic uses `std.math.add`/`std.math.mul`, so on overflow
+//! it panics EXPLICITLY with a message instead of silently wrapping (UB in
+//! ReleaseFast). Coefficients in this layer are of order one to a few tens, so
+//! i64 has room of order 10^17; the panic is only a safety net against API misuse.
+//! purely a safety net against API misuse.
 //!
-//! Wektory mają stały rozmiar (2^5 = 32 blaty), więc **nie ma alokacji**
-//! w żadnej operacji. To czyni wyniki powtarzalnymi i odpornymi na
-//! fragmentację pamięci.
+//! Vectors have fixed size (2^5 = 32 blades), so there is NO allocation in any
+//! operation. That makes results reproducible and immune to memory
+//! fragmentation.
 
 const std = @import("std");
 const mrs = @import("mrs");
@@ -28,17 +28,17 @@ pub const Overflow = error{Overflow};
 
 inline fn addExact(acc: *i64, delta: i64) void {
     acc.* = std.math.add(i64, acc.*, delta) catch @panic(
-        "MRS explore: przekroczenie zakresu w arytmetyce dokładnej",
+        "MRS explore: overflow in exact arithmetic",
     );
 }
 
 inline fn mulExact(a: i64, b: i64) i64 {
     return std.math.mul(i64, a, b) catch @panic(
-        "MRS explore: przekroczenie zakresu w arytmetyce dokładnej",
+        "MRS explore: overflow in exact arithmetic",
     );
 }
 
-/// Multivektor gęsty o współczynnikach całkowitych, indeksowany maską blatu.
+/// Dense multivector with integer coefficients, indexed by blade mask.
 pub const IntVec = struct {
     c: [MAX_BASIS]i64 = [_]i64{0} ** MAX_BASIS,
 
@@ -100,7 +100,7 @@ pub const IntVec = struct {
     }
 };
 
-/// Iloczyn geometryczny w arytmetyce dokładnej. Koszt O(nnz(a)·nnz(b)).
+/// Geometric product in exact arithmetic. Cost O(nnz(a)·nnz(b)).
 pub fn mul(alg: cl.Algebra, a: IntVec, b: IntVec) IntVec {
     const m = alg.basisCount();
     var out = IntVec{};
@@ -131,14 +131,14 @@ pub fn sub(a: IntVec, b: IntVec) IntVec {
 }
 
 // ---------------------------------------------------------------------------
-// Sprzężenia
+// Conjugations
 // ---------------------------------------------------------------------------
 
 fn gradeOf(mask: u32) u32 {
     return @popCount(mask);
 }
 
-/// Odwrócenie (reverse): (−1)^{k(k−1)/2}.
+/// Reverse: (−1)^{k(k−1)/2}.
 pub fn reverseSign(mask: u32) i8 {
     const k = gradeOf(mask);
     const half = (k *% (k -% 1)) / 2;
@@ -150,7 +150,7 @@ pub fn gradeInvSign(mask: u32) i8 {
     return if (gradeOf(mask) % 2 == 0) 1 else -1;
 }
 
-/// Sprzężenie Clifforda (czyli koniugacja): reverse ∘ involucja gradacji,
+/// Clifford conjugate: reverse ∘ grade involution,
 /// znak (−1)^{k(k+1)/2}.
 pub fn cliffordConjSign(mask: u32) i8 {
     const k = gradeOf(mask);
@@ -166,18 +166,18 @@ pub fn conj(x: IntVec, basis_count: usize) IntVec {
     return out;
 }
 
-/// Część skalarna.
+/// Scalar part.
 pub fn scalarPart(x: IntVec) i64 {
     return x.c[0];
 }
 
 // ---------------------------------------------------------------------------
-// Centrum — liczone czystą logiką masek, bez algebry liniowej
+// Centre — computed by pure mask logic, with no linear algebra
 // ---------------------------------------------------------------------------
 
-/// Blat e_S jest centralny ⟺ e_S·e_g = e_g·e_S dla każdego generatora g.
-/// Oba iloczyny dają ten sam blat e_{S△g}, więc wystarczy porównać znaki.
-/// To czyni wyznaczenie centrum operacją na bitach — dokładną i natychmiastową.
+/// A blade e_S is central ⟺ e_S·e_g = e_g·e_S for every generator g.
+/// Both products give the same blade e_{S△g}, so comparing signs suffices.
+/// That makes the centre a bit operation — exact and immediate.
 pub fn bladeIsCentral(alg: cl.Algebra, mask: u32) bool {
     var g: u5 = 0;
     while (g < alg.n_gen) : (g += 1) {
@@ -189,7 +189,7 @@ pub fn bladeIsCentral(alg: cl.Algebra, mask: u32) bool {
     return true;
 }
 
-/// Zbiór blatów rozpinających centrum, jako maska bitowa nad blatami.
+/// Set of blades spanning the centre, as a bitmask over blades.
 pub fn centerBasis(alg: cl.Algebra) u32 {
     const m = alg.basisCount();
     var set: u32 = 0;
@@ -204,8 +204,8 @@ pub fn dimOfSet(set: u32) u5 {
     return @intCast(@popCount(set));
 }
 
-/// Blaty zawierające co najmniej jeden generator zdegenerowany.
-/// Dla r > 0 rozpinają one nilpotentny ideał (patrz `subalgebra.zig`).
+/// Blades containing at least one degenerate generator.
+/// For r > 0 they span a nilpotent ideal (see `subalgebra.zig`).
 pub fn bladesWithDegenerate(alg: cl.Algebra) u32 {
     const m = alg.basisCount();
     var set: u32 = 0;
@@ -239,7 +239,7 @@ pub fn evenBlades(alg: cl.Algebra) u32 {
 
 const sigmod = @import("signatures.zig");
 
-test "iloczyn dokładny zgadza się z iloczynem zmiennoprzecinkowym" {
+test "the exact product agrees with the floating point product" {
     const sb = sigmod.SigBuf.build(.{ .p = 1, .q = 3 }, .mostly_minus);
     const alg = try sb.algebra();
     var prng = std.Random.DefaultPrng.init(7);
@@ -261,7 +261,7 @@ test "iloczyn dokładny zgadza się z iloczynem zmiennoprzecinkowym" {
         // sanity: 1·1 = 1
         const q = cl.bladeMul(alg, 0, 0);
         try std.testing.expectEqual(@as(i8, 1), q.sign);
-        // porównanie z gęstym iloczynem zmiennoprzecinkowym
+        // comparison against the dense floating point product
         const dense = try cl.mulDense(std.testing.allocator, alg, af[0..m], bf[0..m]);
         defer std.testing.allocator.free(dense);
         for (0..m) |i| {
@@ -270,7 +270,7 @@ test "iloczyn dokładny zgadza się z iloczynem zmiennoprzecinkowym" {
     }
 }
 
-test "sprzężenie Clifforda daje skalar dla generatorów" {
+test "the Clifford conjugate of a generator is a scalar" {
     const sb = sigmod.SigBuf.build(.{ .p = 0, .q = 2 }, .mostly_minus);
     const alg = try sb.algebra();
     const m = alg.basisCount();
@@ -288,7 +288,7 @@ test "sprzężenie Clifforda daje skalar dla generatorów" {
     try std.testing.expect(p12.nnz(m) == 1);
 }
 
-test "znaki sprzężeń są spójne z modułem clifford" {
+test "conjugation signs agree with the clifford module" {
     const sb = sigmod.SigBuf.build(.{ .p = 1, .q = 3 }, .mostly_minus);
     const alg = try sb.algebra();
     const m = alg.basisCount();
@@ -308,7 +308,7 @@ test "centrum: Cl(0,3) ma wymiar 2, Cl(0,2) ma wymiar 1" {
     const a3 = try (sigmod.SigBuf.build(.{ .p = 0, .q = 3 }, .mostly_minus)).algebra();
     const c3 = centerBasis(a3);
     try std.testing.expectEqual(@as(u5, 2), dimOfSet(c3));
-    // centrum rozpięte na {1, e1e2e3}
+    // the centre is spanned by {1, e1e2e3}
     try std.testing.expect(c3 & 1 != 0);
     try std.testing.expect(c3 & (@as(u32, 1) << 7) != 0);
 
@@ -323,15 +323,15 @@ test "centrum: Cl(0,3) ma wymiar 2, Cl(0,2) ma wymiar 1" {
     try std.testing.expectEqual(@as(u32, 1), c1);
 }
 
-test "zdegenerowane blaty: jedna macierz pokrywa wszystkie zdegenerowane wymiary" {
+test "degenerate blades: one matrix covers all degenerate dimensions" {
     const alg = try (sigmod.SigBuf.build(.{ .p = 1, .q = 1, .r = 1 }, .mostly_minus)).algebra();
     const d = bladesWithDegenerate(alg);
-    // wymiar 2 (generator zdegenerowany) → blaty {e2, e0e2, e1e2, e0e1e2} = maski 4,5,6,7
+    // dimension 2 (the degenerate generator) → blades {e2, e0e2, e1e2, e0e1e2} = masks 4,5,6,7
     try std.testing.expectEqual(@as(u32, 0b11110000), d);
     try std.testing.expectEqual(@as(u5, 4), dimOfSet(d));
 }
 
-test "parzyste blaty: połowa bazy" {
+test "even blades: half the basis" {
     const sb = sigmod.SigBuf.build(.{ .p = 1, .q = 3 }, .mostly_minus);
     const alg = try sb.algebra();
     const ev = evenBlades(alg);
@@ -339,7 +339,7 @@ test "parzyste blaty: połowa bazy" {
     try std.testing.expectEqual(alg.basisCount() / 2, @as(usize, dimOfSet(ev)));
 }
 
-test "brak alokacji w gorącej ścieżce — struktury są stałego rozmiaru" {
-    // Ten test jest kontraktem: rozmiar IntVec nie zależy od n.
+test "no allocation in the hot path — structures are fixed size" {
+    // This test is a contract: the size of IntVec does not depend on n.
     try std.testing.expectEqual(@as(usize, 32 * 8), @sizeOf(IntVec));
 }

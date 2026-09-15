@@ -15,13 +15,13 @@ Column 2 is the literal construction, where signs come from `signAt` (one branch
 
 | n | MRS literal (branch) | MRS precomputed signs | dense matrix | dense + diagonal detection | dense/MRS | smart/MRS |
 |---:|---:|---:|---:|---:|---:|---:|
-| 16 | 14.6 ns | 16.3 ns | 170.5 ns | 12.8 ns | 10.5× | 0.79× |
-| 32 | 32.2 ns | 33.8 ns | 818.0 ns | 29.8 ns | 24.2× | 0.88× |
-| 64 | 75.2 ns | 77.2 ns | 3.70 µs | 58.9 ns | 48.0× | 0.76× |
-| 128 | 156.0 ns | 169.0 ns | 17.11 µs | 144.4 ns | 101.2× | 0.85× |
-| 256 | 317.5 ns | 319.1 ns | 78.25 µs | 319.5 ns | 245.2× | 1.00× |
-| 512 | 657.9 ns | 659.1 ns | 325.26 µs | 674.3 ns | 493.5× | 1.02× |
-| 1024 | 1.35 µs | 1.35 µs | 1.53 ms | 1.36 µs | 1128.8× | 1.00× |
+| 16 | 15.6 ns | 17.5 ns | 172.3 ns | 12.8 ns | 9.9× | 0.74× |
+| 32 | 32.2 ns | 33.8 ns | 821.1 ns | 32.1 ns | 24.3× | 0.95× |
+| 64 | 75.2 ns | 72.0 ns | 3.57 µs | 59.3 ns | 49.6× | 0.82× |
+| 128 | 167.1 ns | 158.2 ns | 17.72 µs | 154.7 ns | 112.0× | 0.98× |
+| 256 | 351.1 ns | 353.1 ns | 81.05 µs | 319.7 ns | 229.5× | 0.91× |
+| 512 | 679.4 ns | 680.9 ns | 358.04 µs | 675.0 ns | 525.9× | 0.99× |
+| 1024 | 1.40 µs | 1.40 µs | 1.65 ms | 1.40 µs | 1177.6× | 1.00× |
 
 **Reading.** The `dense/MRS` ratio (last but one column) grows like n: that is the O(n^2) versus O(n) difference. The `smart/MRS` ratio is the honest test: a conventional implementation that detects the diagonal once and then uses a strided load. Against MRS WITHOUT the precomputed sign vector that baseline WINS at small n (ratio below 1) — the per-element role branch costs more than the strided load. Against MRS WITH the precomputed vector the ratio goes above 1 and grows with n.
 
@@ -31,11 +31,11 @@ Column 2 is the literal construction, where signs come from `signAt` (one branch
 
 | n | MRS (diagonal) | Gauss-Jordan | G-J/MRS | theoretical complexity |
 |---:|---:|---:|---:|---|
-| 8 | 15.4 ns | 329.2 ns | 21.3× | dense O(n^3) = 1024.0e3 vs MRS O(n) = 8 operations |
-| 16 | 28.5 ns | 1.31 µs | 46.1× | dense O(n^3) = 8192.0e3 vs MRS O(n) = 16 operations |
-| 32 | 57.5 ns | 5.46 µs | 95.0× | dense O(n^3) = 65536.0e3 vs MRS O(n) = 32 operations |
-| 64 | 119.4 ns | 26.79 µs | 224.3× | dense O(n^3) = 524288.0e3 vs MRS O(n) = 64 operations |
-| 128 | 224.4 ns | 120.90 µs | 538.8× | dense O(n^3) = 4194304.0e3 vs MRS O(n) = 128 operations |
+| 8 | 15.6 ns | 340.8 ns | 21.9× | dense O(n^3) = 1024.0e3 vs MRS O(n) = 8 operations |
+| 16 | 30.2 ns | 1.36 µs | 45.1× | dense O(n^3) = 8192.0e3 vs MRS O(n) = 16 operations |
+| 32 | 57.7 ns | 5.63 µs | 97.6× | dense O(n^3) = 65536.0e3 vs MRS O(n) = 32 operations |
+| 64 | 118.7 ns | 27.89 µs | 234.9× | dense O(n^3) = 524288.0e3 vs MRS O(n) = 64 operations |
+| 128 | 233.6 ns | 120.50 µs | 515.9× | dense O(n^3) = 4194304.0e3 vs MRS O(n) = 128 operations |
 
 **Reading.** Here the advantage is structural rather than implementational: for a dense form no shortcut avoids elimination, so the ratio grows like n^2. In MRS-LAB the inverse of the form is the same object as the signature, because `g^{ij} = 1/s_i`. Note the baseline is Gauss-Jordan with partial pivoting — the standard practical choice — not the asymptotically fastest known matrix inverse; the qualitative claim (a diagonal form inverts in O(n), a dense one does not) is what the table supports.
 
@@ -45,12 +45,12 @@ All variants compute exactly the same object: a Lorentz group element equal to t
 
 | N | MRS: rapidity (1 add) | **known best:** f64 rapidity | MRS: split-complex | B1: 2x2 matrix | B2: matrix + atanh | B1/MRS | B2/MRS |
 |---:|---:|---:|---:|---:|---:|---:|---:|
-| 1000 | 1.27 µs | 1.27 µs | 2.98 µs | 3.31 µs | 14.94 µs | 2.6× | 11.8× |
-| 10000 | 12.87 µs | 12.87 µs | 29.08 µs | 33.40 µs | 154.41 µs | 2.6× | 12.0× |
-| 100000 | 129.37 µs | 151.27 µs | 300.74 µs | 351.53 µs | 1.55 ms | 2.7× | 12.0× |
-| 1000000 | 1.37 ms | 1.36 ms | 3.33 ms | 4.05 ms | 18.06 ms | 3.0× | 13.2× |
+| 1000 | 1.27 µs | 1.27 µs | 2.98 µs | 3.35 µs | 15.40 µs | 2.6× | 12.1× |
+| 10000 | 13.30 µs | 13.31 µs | 30.32 µs | 33.91 µs | 163.79 µs | 2.5× | 12.3× |
+| 100000 | 133.90 µs | 133.78 µs | 305.21 µs | 363.69 µs | 1.73 ms | 2.7× | 12.9× |
+| 1000000 | 1.51 ms | 1.50 ms | 3.59 ms | 4.72 ms | 18.17 ms | 3.1× | 12.0× |
 
-**Ratio of MRS to the BEST KNOWN classical method: 1.041x.** That method is plain addition of rapidities held in f64 variables — literally the same code, which is why the ratio is 1. This is an IDENTITY CHECK, not a measurement: it shows that the classical best method for this problem is the same computation. In other words, the 2.5-2.8x advantage over matrices **is not an advantage of MRS over mathematics** — it is an advantage of the additive representation over the multiplicative one, and classical mathematics knows the additive one just as well.
+**Ratio of MRS to the BEST KNOWN classical method: 0.999x.** That method is plain addition of rapidities held in f64 variables — literally the same code, which is why the ratio is 1. This is an IDENTITY CHECK, not a measurement: it shows that the classical best method for this problem is the same computation. In other words, the 2.5-2.8x advantage over matrices **is not an advantage of MRS over mathematics** — it is an advantage of the additive representation over the multiplicative one, and classical mathematics knows the additive one just as well.
 
 
 ### T2b — numerical drift over a long chain
@@ -88,11 +88,11 @@ One product of two multivectors with 4 nonzero blades. All buffers are supplied 
 
 | n | 2^n | MRS: k^2 | B3: scan 2^n + k^2 | B2: dense + zero skip | B1: dense full | B3/MRS | B1/MRS |
 |---:|---:|---:|---:|---:|---:|---:|---:|
-| 4 | 16 | 252.4 ns | 289.1 ns | 153.4 ns | 483.5 ns | 1× | 2× |
-| 6 | 64 | 312.6 ns | 407.1 ns | 459.5 ns | 2.39 µs | 1× | 8× |
-| 8 | 256 | 386.9 ns | 845.4 ns | 1.92 µs | 12.57 µs | 2× | 32× |
-| 10 | 1024 | 415.0 ns | 1.97 µs | 6.93 µs | 80.99 µs | 5× | 195× |
-| 12 | 4096 | 427.0 ns | 5.75 µs | 26.95 µs | 385.72 µs | 13× | 903× |
+| 4 | 16 | 251.0 ns | 287.2 ns | 153.5 ns | 485.1 ns | 1× | 2× |
+| 6 | 64 | 338.0 ns | 438.4 ns | 492.0 ns | 2.38 µs | 1× | 7× |
+| 8 | 256 | 360.9 ns | 784.1 ns | 1.92 µs | 12.43 µs | 2× | 34× |
+| 10 | 1024 | 415.0 ns | 1.96 µs | 6.94 µs | 80.67 µs | 5× | 194× |
+| 12 | 4096 | 428.0 ns | 5.78 µs | 26.87 µs | 387.30 µs | 13× | 905× |
 
 **Reading.** B3 (the same sparse algorithm, but fed a dense array) pays the unavoidable 2^n scan and therefore loses to MRS-LAB by a growing factor. B1 pays 4^n. The advantage of MRS-LAB over B3 grows like 2^n/k^2.
 
@@ -100,18 +100,18 @@ One product of two multivectors with 4 nonzero blades. All buffers are supplied 
 
 | k | MRS: sparse | B3: scan + sparse | B2: dense + zero skip | B2/MRS | winner |
 |---:|---:|---:|---:|---:|---|
-| 2 | 117.0 ns | 1.38 µs | 5.03 µs | 43.0× | **MRS** |
-| 8 | 1.81 µs | 3.27 µs | 11.27 µs | 6.2× | **MRS** |
-| 32 | 68.19 µs | 71.97 µs | 57.49 µs | 0.8× | dense |
-| 128 | 1.69 ms | 1.69 ms | 729.88 µs | 0.4× | dense |
-| 256 | 6.71 ms | 7.08 ms | 2.58 ms | 0.4× | dense |
-| 512 | 32.89 ms | 32.84 ms | 9.06 ms | 0.3× | dense |
-| 768 | 90.53 ms | 87.67 ms | 15.96 ms | 0.2× | dense |
-| 1024 | 124.72 ms | 133.60 ms | 18.15 ms | 0.1× | dense |
+| 2 | 114.0 ns | 1.38 µs | 5.03 µs | 44.1× | **MRS** |
+| 8 | 1.87 µs | 3.35 µs | 11.50 µs | 6.2× | **MRS** |
+| 32 | 69.74 µs | 77.72 µs | 63.22 µs | 0.9× | dense |
+| 128 | 1.76 ms | 1.79 ms | 735.13 µs | 0.4× | dense |
+| 256 | 7.18 ms | 7.35 ms | 2.60 ms | 0.4× | dense |
+| 512 | 33.87 ms | 36.73 ms | 9.51 ms | 0.3× | dense |
+| 768 | 92.86 ms | 93.38 ms | 15.99 ms | 0.2× | dense |
+| 1024 | 132.43 ms | 135.91 ms | 18.13 ms | 0.1× | dense |
 
 ### T3b — wniosek liczbowy
 
-Cost ratio derived from the measurement, sparse operation to dense pair: **C = 1924.8**. It is the only constant in the model, and it is not guessed — it falls out of the data.
+Cost ratio derived from the measurement, sparse operation to dense pair: **C = 1896.0**. It is the only constant in the model, and it is not guessed — it falls out of the data.
 
 | k | measured | `chooseStrategy` prediction | agree |
 |---:|---|---|---|
@@ -160,9 +160,9 @@ The value of MRS-LAB is therefore not that "the result is more accurate than the
 
 | N points | MRS: dual | central difference | difference/MRS |
 |---:|---:|---:|---:|
-| 1000 | 5.38 µs | 8.20 µs | 1.53× |
-| 10000 | 538.7 ns | 817.5 ns | 1.52× |
-| 100000 | 50.3 ns | 79.3 ns | 1.58× |
+| 1000 | 5.42 µs | 7.85 µs | 1.45× |
+| 10000 | 558.3 ns | 764.5 ns | 1.37× |
+| 100000 | 52.1 ns | 76.2 ns | 1.46× |
 
 **Reading.** Central differences need TWO function calls per derivative, each containing a square root and a sinusoid. The dual algebra computes the derivative in one pass, adding only one multiplication per operation. The timing advantage is of order 2x, and that is what is measured — the rest of the difference is loop overhead.
 
