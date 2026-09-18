@@ -48,6 +48,7 @@
 const std = @import("std");
 const sig = @import("signature.zig");
 const form = @import("form.zig");
+const contract = @import("contract.zig");
 
 const Signature = sig.Signature;
 const DiagonalForm = form.DiagonalForm;
@@ -160,11 +161,13 @@ pub const Order = struct {
     roles: [MAX_DIM]sig.Role = undefined,
     len: u5 = 0,
     time_sign: sig.TimeSign = .mostly_minus,
-    /// Tolerance for recognising the zero vector. In floating point arithmetic
-    /// g(v,v) = 0 is realised as |g| ~ eps, so "null" MUST be a notion with
-    /// a tolerance. In MRS-LAB the tolerance is an explicit parameter of the
-    /// type, not a magic constant scattered through the code.
-    tol: f64 = 1e-9,
+    // REMOVED in 0.1.6: the field `tol: f64 = 1e-9`. It is worth saying why it
+    // is gone rather than deprecated. Every relation on this type now decides
+    // with the propagated radius, so nothing read the field any more — and a
+    // public knob that silently does nothing is worse than no knob at all.
+    // Callers who want a tolerance notion have `DiagonalForm.classifyTol(v, tol)`
+    // and `split_complex.isZeroDivisor(a, tol)`; they are named as alternatives
+    // on purpose, because they answer a different question.
     /// Index of the dimension chosen as the time arrow. For p >= 2 this is
     /// EXTRA structure that the form itself does not determine.
     time_arrow: usize,
@@ -202,8 +205,30 @@ pub const Order = struct {
     /// `classify`, which is why this works for (+,−,−,−) as well,
     ///     and for (−,+,+,+).
     pub fn inFutureCone(self: Order, v: []const f64) bool {
-        if (self.f.classifyTol(v, self.tol) == .spatial) return false;
+        const cls = self.classifyDecided(v);
+        // `.invalid` is REFUSED, not admitted. A vector with a non-finite
+        // component has no norm, so no statement about the cone is true of it,
+        // and the arrow test below cannot catch it on its own: a vector with a
+        // finite arrow component and a NaN elsewhere used to pass, because
+        // `NaN >= 0.0` is false only when the NaN is the arrow itself.
+        if (cls == .spatial or cls == .invalid) return false;
         return v[self.time_arrow] >= 0.0;
+    }
+
+    /// Classification with the bound PROPAGATED from the computation, instead
+    /// of a tolerance supplied from outside.
+    ///
+    /// Why this replaced `classifyTol(v, self.tol)` in the predicates above:
+    /// the tolerance answered "is |g| smaller than 1e-9", which calls an
+    /// ordinary vector with a small norm null. `1 - (1 - 1e-10)²` is about
+    /// 2e-10, computed to a radius of order 1e-16 — the sign is decided and
+    /// the vector is timelike, and only a constant said otherwise. Here
+    /// `.null_like` means "the computation cannot separate the norm from zero",
+    /// which is a statement about the computation and not about a threshold.
+    ///
+    /// A vector that is not finite has no classification: `Class.invalid`.
+    pub fn classifyDecided(self: Order, v: []const f64) form.Class {
+        return contract.classify(self.f, v);
     }
 
     /// Oriented relation: u ⪯ v.
@@ -219,7 +244,8 @@ pub const Order = struct {
     pub fn separation(self: Order, u: []const f64, v: []const f64) bool {
         var d: [MAX_DIM]f64 = undefined;
         for (0..u.len) |i| d[i] = v[i] - u[i];
-        return self.f.classifyTol(d[0..u.len], self.tol) != .spatial;
+        const cls = self.classifyDecided(d[0..u.len]);
+        return cls == .temporal or cls == .null_like;
     }
 
     /// Null separation: g(v−u, v−u) = 0 — an equivalence relation whose
@@ -227,7 +253,7 @@ pub const Order = struct {
     pub fn nullSeparated(self: Order, u: []const f64, v: []const f64) bool {
         var d: [MAX_DIM]f64 = undefined;
         for (0..u.len) |i| d[i] = v[i] - u[i];
-        return self.f.classifyTol(d[0..u.len], self.tol) == .null_like;
+        return self.classifyDecided(d[0..u.len]) == .null_like;
     }
 
     // -- cone vector generators ----------------------------------------------
@@ -283,7 +309,12 @@ pub const Order = struct {
             .timelike_future => 2.0,
         };
 
-        const cls = self.f.classifyTol(out[0..nn], self.tol);
+        // Also decided rather than tolerance-checked: the generator must be able
+        // to certify that the vector it built really is null, not merely that
+        // the norm is under a threshold. If the construction fails, the caller
+        // sees fewer successful trials — which the verdict now reports — rather
+        // than a vector that only looked null.
+        const cls = self.classifyDecided(out[0..nn]);
         return switch (mode) {
             .null_future => cls == .null_like,
             .timelike_future => cls == .temporal,
@@ -782,4 +813,27 @@ test "an Order survives the frame it was built from" {
     const res = probeTransitivity(o, 2000, prng.random());
     try std.testing.expectEqual(@as(usize, 0), res.violations);
     try std.testing.expect(res.checked > 1500);
+}
+
+test "COUNTEREXAMPLE: the tolerance called it null, the computation decides it" {
+    // This is the behaviour change of 0.1.6, stated as the smallest case that
+    // shows it. v = (1, 1−1e-10, 0, 0) has g = 2e-10 − 1e-20 ≈ 2e-10, computed
+    // to a radius of order 1e-16.
+    const o = try Order.init(sig.minkowski_3_1, 0);
+    var v = [_]f64{ 1.0, 1.0 - 1e-10, 0, 0 };
+
+    // The old rule: |g| <= 1e-9, so the vector is reported as NULL.
+    try std.testing.expectEqual(form.Class.null_like, o.f.classifyTol(&v, 1e-9));
+    // The computation: 2e-10 against a radius of 2e-16 — decided, timelike.
+    try std.testing.expectEqual(form.Class.temporal, o.classifyDecided(&v));
+    // ... and the relation follows the sharper classification, not the constant:
+    // a null vector is in its own future cone, and so is this one, but they are
+    // now distinguishable by `nullSeparated`.
+    try std.testing.expect(o.inFutureCone(&v));
+    try std.testing.expect(!o.nullSeparated(&[_]f64{ 0, 0, 0, 0 }, &v));
+
+    // A genuinely null vector is still null: the radius covers a computed zero.
+    const nullish = [_]f64{ 1.0, 1.0, 0, 0 };
+    try std.testing.expectEqual(form.Class.null_like, o.classifyDecided(&nullish));
+    try std.testing.expect(o.nullSeparated(&[_]f64{ 0, 0, 0, 0 }, &nullish));
 }

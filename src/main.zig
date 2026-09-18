@@ -22,6 +22,7 @@ const t3 = @import("bench/t3_clifford.zig");
 const t4 = @import("bench/t4_derivative.zig");
 const t5 = @import("bench/t5_contract.zig");
 const t6 = @import("bench/t6_exact.zig");
+const t7 = @import("bench/t7_resolution.zig");
 const explore_report = @import("explore/report.zig");
 
 const sig = mrs.signature;
@@ -31,7 +32,7 @@ const Z = mrs.split_complex.Z;
 const causal = mrs.causal;
 const cl = mrs.clifford;
 
-const VERSION = "MRS-LAB 0.1.5";
+const VERSION = "MRS-LAB 0.1.6";
 
 // ---------------------------------------------------------------------------
 // Input
@@ -353,6 +354,37 @@ fn demo(w: *Io.Writer) !void {
         const small = contract.Bounded.exact(1e-300);
         try w.print("    1e-300 known exactly   ± 0                    →  {s}\n\n", .{
             if (small.couldBeZero()) "null" else "NOT null: a small number is not a zero",
+        });
+    }
+    try w.writeAll("Where a tolerance used to decide, the computation now does. The same\n" ++
+        "vector, both rules:\n\n");
+    {
+        const f6 = form.DiagonalForm.init(sig.minkowski_3_1);
+        const o6 = try causal.Order.init(sig.minkowski_3_1, 0);
+        const tiny = [_]f64{ 1.0, 1.0 - 1e-10, 0, 0 };
+        const g = contract.evalForm(f6, &tiny);
+        try w.print("    v = (1, 1−1e-10, 0, 0)   g = {e:.2} ± {e:.2}\n", .{ g.value, g.radius });
+        try w.print("        tolerance 1e-9 says : {s}\n", .{
+            if (f6.classifyTol(&tiny, 1e-9) == .null_like) "null — |g| is under the threshold" else "decided",
+        });
+        try w.print("        the computation says: {s}\n\n", .{
+            switch (o6.classifyDecided(&tiny)) {
+                .temporal => "temporal — the sign is not in doubt",
+                .null_like => "null",
+                .spatial => "spatial",
+                .invalid => "invalid",
+            },
+        });
+        const lam: f64 = 1e-5;
+        const small = [_]f64{ lam, lam * 0.95, 0, 0 };
+        const gs = contract.evalForm(f6, &small);
+        try w.print("    v = 1e-5·(1, 0.95, 0, 0) — 9.75 % off the cone\n", .{});
+        try w.print("        g = {e:.2} ± {e:.2}, |g|/λ² = {d:.3}\n", .{ gs.value, gs.radius, 0.0975 });
+        try w.print("        tolerance 1e-9 says : {s}\n", .{
+            if (f6.classifyTol(&small, 1e-9) == .null_like) "null — the norm is merely small" else "decided",
+        });
+        try w.print("        the computation says: {s}\n\n", .{
+            if (o6.classifyDecided(&small) == .null_like) "null" else "decided — the radius is scale free",
         });
     }
     try w.writeAll("What a radius is worth depends on the representation, and that is\n" ++
@@ -840,6 +872,45 @@ fn verify(w: *Io.Writer) !usize {
         );
     }
 
+    // A17: the classification is decided by the computation, not by a constant
+    {
+        const f17 = form.DiagonalForm.init(sig.minkowski_3_1);
+        const o17 = try causal.Order.init(sig.minkowski_3_1, 0);
+        var ok = true;
+        var detail: []const u8 = "1-tiny-norm vector decided; 9.75% off the cone and scaled down: still decided";
+
+        // (1) |g| = 2e-10, radius 5.6e-16: the tolerance said null, the
+        //     computation decides, and it decides for the right sign.
+        const tiny = [_]f64{ 1.0, 1.0 - 1e-10, 0, 0 };
+        if (f17.classifyTol(&tiny, 1e-9) != .null_like) {
+            ok = false;
+            detail = "the 0.1.5 rule no longer says null — the comparison is stale";
+        }
+        if (o17.classifyDecided(&tiny) != .temporal) {
+            ok = false;
+            detail = "a decided timelike vector was not decided";
+        }
+
+        // (2) The absolute tolerance is not scale invariant: the same 9.75 %
+        //     vector, scaled down by 1e5, used to be reported as null.
+        const lam: f64 = 1e-5;
+        const small = [_]f64{ lam, lam * 0.95, 0, 0 };
+        if (f17.classifyTol(&small, 1e-9) != .null_like) {
+            ok = false;
+            detail = "the scale failure this check describes no longer reproduces";
+        }
+        if (o17.classifyDecided(&small) == .null_like) {
+            ok = false;
+            detail = "a vector 9.75% off the cone was called null";
+        }
+
+        try c.check(
+            "A17 the classification is decided by the computation, not a constant",
+            ok,
+            detail,
+        );
+    }
+
     try w.print("\n---\n\n**Result:** {d} checks passed, {d} failed.\n", .{ c.passed, c.failed });
     return c.failed;
 }
@@ -872,6 +943,7 @@ fn report(
     try t4.run(io, alloc, w, quick);
     try t5.run(io, alloc, w, quick);
     try t6.run(io, alloc, w, quick);
+    try t7.run(io, alloc, w, quick);
 
     try w.writeAll("## Summary\n\n");
     try w.writeAll(
@@ -883,6 +955,8 @@ fn report(
         \\| T3 | sparse multivectors | exponential gain over a dense baseline; against a sparse-input baseline the difference is exactly the cost of discovering sparsity |
         \\| T4 | derivative of the dispersion relation | real gain on both criteria: about 1.5x faster and several orders more accurate |
         \\| T5 | price of an error radius | not a speed claim but a price list: 1.67x-2.10x where a radius is asked for, and nothing where the contract carries none |
+        \\| T6 | the exact mode | 4.7x-8.0x on the P2 decision path by removing three wastes, with the arithmetic unchanged term for term; a test requires identical verdicts AND identical witnesses against the dense path |
+        \\| T7 | resolution of a classification | the tolerance could not decide below a constant and called a vector 9.75 % off the cone null once it was small; the propagated radius decides to where f64 stops separating and is scale invariant |
         \\
         \\**Overall.** MRS-LAB creates no new mathematics in T1 or T3 — there the
         \\engineering of representation wins. The advantages that survive every baseline
@@ -918,6 +992,7 @@ test {
     _ = @import("bench/t4_derivative.zig");
     _ = @import("bench/t5_contract.zig");
     _ = @import("bench/t6_exact.zig");
+    _ = @import("bench/t7_resolution.zig");
     _ = @import("explore/signatures.zig");
     _ = @import("explore/exact.zig");
     _ = @import("explore/subalgebra.zig");

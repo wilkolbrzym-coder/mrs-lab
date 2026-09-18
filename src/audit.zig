@@ -39,6 +39,7 @@ const cl = mrs.clifford;
 const tach = mrs.tachyon;
 const causal = mrs.causal;
 const Z = mrs.split_complex.Z;
+const contract = mrs.contract;
 
 // ---------------------------------------------------------------------------
 // Every declared error, provoked
@@ -238,4 +239,82 @@ test "the sparse kernel and the wide path refuse an algebra past their tables" {
     const alg7 = try cl.Algebra.init(7, [_]i8{1} ** cl.MAX_GEN);
     try std.testing.expectEqual(@as(usize, 128), alg7.basisCount());
     try std.testing.expectError(error.TooManyBlades, wide.decideScalarMultiplicative(alg7));
+}
+
+test "the decided classification agrees with the tolerance where it should, and differs where it must" {
+    // The 0.1.6 behaviour change, pinned from both sides: identical on every
+    // vector whose status is not in dispute, and deliberately different on the
+    // two families where a constant cannot be right.
+    const f = form.DiagonalForm.init(sig.minkowski_3_1);
+
+    // Agreement: clearly timelike, clearly spacelike, exactly null.
+    const cases = [_]struct { v: [4]f64, c: form.Class }{
+        .{ .v = .{ 1.0, 0.0, 0.0, 0.0 }, .c = .temporal },
+        .{ .v = .{ 0.0, 1.0, 0.0, 0.0 }, .c = .spatial },
+        .{ .v = .{ 1.0, 1.0, 0.0, 0.0 }, .c = .null_like },
+        .{ .v = .{ 3.0, 2.0, 1.0, 0.5 }, .c = .temporal },
+    };
+    for (cases) |k| {
+        const by_radius = contract.classify(f, &k.v);
+        try std.testing.expectEqual(k.c, by_radius);
+        try std.testing.expectEqual(k.c, f.classifyTol(&k.v, 1e-9));
+    }
+
+    // Difference 1: a small norm that the computation still resolves.
+    const tiny = [_]f64{ 1.0, 1.0 - 1e-10, 0, 0 };
+    try std.testing.expectEqual(form.Class.null_like, f.classifyTol(&tiny, 1e-9));
+    try std.testing.expectEqual(form.Class.temporal, contract.classify(f, &tiny));
+
+    // Difference 2: the absolute tolerance is not scale invariant.
+    const lam: f64 = 1e-5;
+    const scaled = [_]f64{ lam, lam * 0.95, 0, 0 };
+    try std.testing.expectEqual(form.Class.null_like, f.classifyTol(&scaled, 1e-9));
+    try std.testing.expect(contract.classify(f, &scaled) != .null_like);
+}
+
+test "isZeroDivisorDecided: the same story in the split-complex algebra" {
+    // The tolerance version calls anything with a small norm a zero divisor.
+    const small = Z.init(1e-6, 1e-6); // N = 0 exactly? no: 1e-12 - 1e-12 = 0
+    try std.testing.expect(small.isZeroDivisor(1e-9));
+    try std.testing.expect(contract.isZeroDivisorDecided(small));
+
+    // A genuine zero divisor: N(z) = 0 exactly, so the radius covers it.
+    const on_cone = Z.init(1.0, 1.0);
+    try std.testing.expect(contract.isZeroDivisorDecided(on_cone));
+
+    // Scale invariance: the same element scaled down is STILL a zero divisor
+    // (it is on the cone), and a non-divisor stays a non-divisor.
+    try std.testing.expect(contract.isZeroDivisorDecided(Z.init(1e-9, 1e-9)));
+    const off_cone = Z.init(1.0, 0.95);
+    try std.testing.expect(!contract.isZeroDivisorDecided(off_cone));
+    try std.testing.expect(!contract.isZeroDivisorDecided(Z.init(1e-9, 0.95e-9)));
+
+    // A non-finite element is not a zero divisor, and says so by refusing.
+    try std.testing.expect(!contract.isZeroDivisorDecided(Z.init(std.math.nan(f64), 0.0)));
+}
+
+test "a non-finite vector is refused by the cone, not admitted by a fall-through" {
+    // Found by the 0.1.6 review. `inFutureCone` used to ask only "is it spatial",
+    // so `.invalid` fell through to the arrow test — and a vector whose arrow
+    // component is finite but which is NaN elsewhere passed it. `NaN >= 0.0` is
+    // false only when the NaN IS the arrow.
+    const o = try causal.Order.init(sig.minkowski_3_1, 0);
+    const nan_spatial = [_]f64{ 1.0, std.math.nan(f64), 0, 0 };
+    const nan_arrow = [_]f64{ std.math.nan(f64), 1.0, 0, 0 };
+    const inf_spatial = [_]f64{ 1.0, std.math.inf(f64), 0, 0 };
+
+    try std.testing.expectEqual(form.Class.invalid, o.classifyDecided(&nan_spatial));
+    try std.testing.expect(!o.inFutureCone(&nan_spatial));
+    try std.testing.expect(!o.inFutureCone(&nan_arrow));
+    try std.testing.expect(!o.inFutureCone(&inf_spatial));
+
+    // the relation refuses it too, in both directions
+    const origin = [_]f64{ 0, 0, 0, 0 };
+    try std.testing.expect(!o.leq(&origin, &nan_spatial));
+    try std.testing.expect(!o.separation(&origin, &nan_spatial));
+    try std.testing.expect(!o.nullSeparated(&origin, &nan_spatial));
+
+    // ... and a finite vector is untouched by the new branch
+    const ok = [_]f64{ 1.0, 0.5, 0, 0 };
+    try std.testing.expect(o.inFutureCone(&ok));
 }

@@ -7,6 +7,86 @@ All notable changes to MRS-LAB are recorded here. The format follows
 Two rules from the README apply to every entry below: a scope limit is a scope
 limit and not a negative result, and "not shown" never means "impossible".
 
+## [0.1.6] — 2026-09-15
+
+Nothing is decided by a constant any more. This closes the story 0.1.3 opened:
+the propagated radius reaches the last three places where a tolerance supplied
+from outside was making the decision. Reproducible: `zig build test` (390 tests,
+Debug + ReleaseSafe + ReleaseFast), `zig build verify` (19 checks),
+`zig build bench` (T1–T7 into `results/RESULTS.md`).
+
+### Changed
+
+- **`Order.classifyDecided` replaces `classifyTol(v, self.tol)` in
+  `inFutureCone`, `separation`, `nullSeparated` and in the cone-vector
+  generator.** `.null_like` now means "the computation cannot separate the norm
+  from zero" instead of "the norm is under 1e-9". `classifyTol` stays, and the
+  two are tested against each other on every vector whose status is not in
+  dispute — the change is deliberate and narrow, not a rewrite.
+- **`contract.isZeroDivisorDecided`** — the same rule for `N(z) = re² − im²`,
+  alongside `split_complex.isZeroDivisor(a, tol)`, which it does not replace.
+  A non-finite element is not a zero divisor: the predicate is about a real
+  condition, and NaN satisfies nothing.
+
+### Measured — what the constant was doing wrong (T7)
+
+Two failures, both in the report rather than in prose. Family
+`v = λ·(1, 1−δ, 0, 0)`, whose exact norm is `λ²(2δ − δ²)`:
+
+- **It refused what it could decide.** At `δ = 1e-10` the norm is `2e-10`,
+  computed to a radius of `5.55e-16`: the sign is not in doubt and the constant
+  called it null anyway. The old rule stops deciding below `|g| ≈ 5e-10`; the
+  new one decides to `~1e-16`, where f64 itself stops separating — about six
+  orders of magnitude, and nothing is given up for it.
+- **It was not scale invariant, so it was not about the cone.** At
+  `δ = 0.05` the vector is 9.75 % off the cone at any scale, because the ratio
+  `|g|/λ²` does not depend on `λ`. The tolerance reported it as **null** once
+  `λ = 1e-5`, because its norm fell to `9.75e-12` — a statement about magnitude
+  wearing the clothes of a statement about geometry. The radius version is scale
+  free, because the radius is built from the same products as the value.
+
+The honest cost, also in T7: the resolution is now set by f64 rather than by a
+number this project chose, so a genuinely fuzzy input — a measurement known to
+`1e-8` — gets a classification that is now undecided. That is what
+`Bounded.fromError` is for: the stated error travels into the radius and the
+answer becomes "I cannot decide", for a reason that is true.
+
+### Added
+
+- `verify` A17 pins the behaviour change from BOTH sides: the 0.1.5 rule must
+  still say "null" on the two families above (or the comparison has gone stale
+  and the check is measuring nothing), and the 0.1.6 rule must decide them.
+- `demo` prints the same two vectors under both rules, so the difference is
+  visible without running a benchmark.
+- T7 in `results/RESULTS.md`, and a row for it in the summary table.
+
+### Fixed
+
+- **A vector with a non-finite component was admitted to the future cone.**
+  Found by the 0.1.6 review. `inFutureCone` asked only "is it spatial", so
+  `Class.invalid` fell through to the arrow test — and a vector whose arrow
+  component is finite but which is NaN elsewhere passed it, because
+  `NaN >= 0.0` is false only when the NaN IS the arrow. Both `inFutureCone` and
+  `separation` now refuse `.invalid` explicitly, with a regression test covering
+  NaN in the arrow position, NaN elsewhere and an infinity.
+- **A claim in the 0.1.5 entry was false and is corrected rather than left
+  standing.** It said `results/RESULTS.md` gained "a row for it in the summary
+  table"; the T6 row was never added — the edit that was supposed to add it did
+  not match the text it was rewriting and failed silently. The row is there now,
+  together with the T7 row, and both are checked by looking at the committed
+  file rather than at the edit.
+
+### Known follow-ups
+
+- The tolerance parameters are still accepted by `classifyTol` and
+  `isZeroDivisor`. They are no longer used by any decision the engine makes
+  internally; removing them would break callers who want the old notion, so they
+  stay as an explicitly named alternative.
+- `Order.tol` was REMOVED, not deprecated: after the predicates moved to the
+  radius nothing read it, and a public knob that silently does nothing is worse
+  than no knob. This is a breaking change to the struct, taken deliberately in a
+  pre-release.
+
 ## [0.1.5] — 2026-09-15
 
 A larger step than the two before it: the exact mode is pushed to its limit, the

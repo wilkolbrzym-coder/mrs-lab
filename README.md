@@ -13,96 +13,54 @@ byte for byte.
 
 **Repository:** <https://github.com/wilkolbrzym-coder/mrs-lab>
 
-**Status:** 0.1.5. The engine decides questions P2 and P4 below for every
-signature with `p+q+r <= 5` — all 55 of them — and the rule behind P2 has been
-tested outside that range, at `n = 6`. P1 is partially decided, P3 is specified
-but not implemented.
+**Status:** 0.1.6. The engine decides questions P2 and P4 below for every
+signature with `p+q+r <= 5` — all 55 of them — the P2a rule has been tested at
+`n = 6`, and the causal layer now decides with no tolerance constant at all.
+P1 is partially decided, P3 is specified but not implemented.
 
-## What's new in 0.1.5
+## What's new in 0.1.6
 
-**The exact mode — no floating point, no tolerance, 0 is exactly 0 — was pushed
-to its limit, and the rule it produced was taken outside the range where it was
-found.**
+**Nothing is decided by a constant any more.** This closes the story 0.1.3
+opened: the propagated radius now reaches the last three places where a
+caller-supplied tolerance was making the decision.
 
-### The optimisation: 4.7×–8.0×, with nothing traded for it
+### What the constant was doing wrong
 
-The decision procedures evaluate a polynomial on the determining set
-`D = {0} ∪ {e_i} ∪ {e_i+e_j}`, so every vector they ever multiply has at most
-**two** nonzero blade coefficients. The old path did not know that: it scanned
-all `m = 2^n` coefficient slots of both factors — 1024 slots per pair at
-`n = 5`, of which at most four do anything — recomputed the norm of `grid[j]`
-once per `i`, and paid a bit loop inside `bladeMul` for every product. All three
-are gone, and nothing else changed.
+The causal layer decided "is this vector null?" with `|g| <= 1e-9`. Two
+consequences, both measured in T7 rather than asserted:
 
-What was NOT traded: the arithmetic is identical term for term, and a test
-requires the two paths to produce identical verdicts **and identical witnesses**
-on every signature the engine can build. That is a change of representation on
-the decision path, not a change of method, and it is the only reason the result
-is allowed to be called a speedup at all.
+- **It refused what it could decide.** `v = (1, 1−1e-10, 0, 0)` has
+  `g ≈ 2e-10`, computed to a radius of 5.6e-16. The sign is not in doubt; the
+  constant called it null anyway.
+- **It was not scale invariant, so it was not about the cone.** An absolute
+  threshold says nothing about geometry: scale that family down by `1e5` and a
+  vector **9.75 % off the cone** is reported as null, because its norm fell to
+  9.75e-12. A statement about the cone has to be scale free, and the radius is,
+  because it is built from the same products as the value.
 
-Measured on eight signatures: 4.7×–5.8× at `n = 4`, 6.8×–8.0× at `n = 5`, the
-largest gain falling where the dense path wastes most.
+Measured boundary (T7, `λ = 1`): the old rule stopped deciding below
+`|g| ≈ 5e-10`; the new one decides down to `~1e-16`, i.e. to where f64 itself
+stops separating — a gain of about six orders of magnitude, and the price is
+paid only where the input is genuinely fuzzy. For a measured vector with a
+stated error, `Bounded.fromError` carries that error into the radius and the
+classification goes back to being undecided — this time for a reason that is
+true rather than for one we chose.
 
-Honest about the ceiling: the number of pairs is fixed by the mathematics
-(`|D|² = 279 841` at `n = 5`) and no representation change moves it.
+### What changed in the code
 
-### The door: the rule was taken outside its own range
+- `Order.classifyDecided` replaces `classifyTol(v, self.tol)` in
+  `inFutureCone`, `separation`, `nullSeparated` and in the cone-vector
+  generator. `classifyTol` stays for callers who want a tolerance notion, and
+  the two are tested against each other on the vectors where they must agree.
+- `contract.isZeroDivisorDecided` — the same rule for `N(z) = re² − im²` in the
+  split-complex algebra, alongside the tolerance version it does not replace.
+- `verify` gains A17, which pins the behaviour change from both sides: the old
+  rule must still say "null" on the two families (or the comparison is stale),
+  and the new rule must decide them.
+- `demo` prints the same two cases, so the difference is visible without
+  running a benchmark.
 
-The table states **P2a holds ⇔ `p+q <= 2`**, verified for `p+q+r <= 5` — 55
-signatures. That is an observation *inside* a range. The engine refused beyond it
-for an implementation reason (32-bit masks), not because the mathematics stops.
-
-`src/explore/p2_wide.zig` widens the masks to 64 blades and **declares its
-prediction in the source, before running it**:
-
-| signature | `p+q` | predicted | measured |
-|---|---:|---|---|
-| `(0,0,6)` | 0 | holds | **holds** |
-| `(0,1,5)` | 1 | holds | **holds** |
-| `(0,2,4)` | 2 | holds | **holds** |
-| `(0,3,3)` | 3 | fails | **fails** |
-| `(0,6,0)` | 6 | fails | **fails** |
-
-Every line held — 4 329 961 pairs per signature, about five seconds for all five. The rule survived a factor-16
-enlargement of the space in which it was found, so it is no longer a fit to 55
-points. The line that matters most is the first: six nilpotent generators,
-`|D|² = 4 329 961` pairs, and the scalar norm is still multiplicative —
-degenerate dimensions really are invisible to it.
-
-The wide path is cross-checked against the in-range engine on all 34 signatures
-with `n <= 4`, where both can run, before any `n = 6` answer is allowed to mean
-anything. That cross-check runs in all three optimisation modes.
-
-### The safety gate
-
-`src/audit.zig` holds one test per error the public API can return, plus a sweep
-over the edges of every declared domain. The audit found that
-`TooManyGenerators`, `NoGenerators`, `DimensionTooLarge`, `NegativeMu2`, all
-three variants of `OrderError` and the overflow guard had **no test that ever
-provoked them**. A declared error that no test triggers is a comment, not a
-safety feature; each now has one.
-
-The second finding was worse. **A vector containing NaN was classified as
-`spatial` — as a tachyon.** Both comparisons in `classifyTol` come out false for
-a NaN norm, and the code fell through to the last branch, so an input the engine
-cannot classify came back with a confident answer. It now says so:
-`Class.invalid` exists for exactly this.
-
-What the gate does not claim: reachability is not correctness. Both silently
-wrong verdicts found in the 0.1.1 audit sat on paths that HAD tests, and those
-tests agreed with the code because both encoded the same wrong assumption.
-
-### Not in this release, and why
-
-The error contract of 0.1.3 is still not wired into `causal.zig` or
-`split_complex.zig`; their tolerance arguments keep their behaviour. Converting
-them changes the verdicts those functions return for near-null vectors, and a
-change like that needs its own counterexamples rather than a paragraph of
-justification. The plan said it would be reverted rather than explained if it
-went that way, and it did.
-
-0.1.3 (the error contract in the type) and 0.1.2 (P4 reaching `p+q+r = 5`) are in
-[CHANGELOG.md](CHANGELOG.md).
+Everything from 0.1.5 and 0.1.3 is in [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
@@ -122,6 +80,7 @@ work, and the engine says so rather than guessing.
 | exact reproducibility | all reports | byte-identical output between runs |
 | form evaluation, boost composition, derivatives | `n <= 1024` for the numeric layer | `f64`, with per-operation error contracts stated in the source |
 | **error contracts** — a value carries a bound on its own error | form evaluation and the operations of `contract.zig`; the zero test follows from the radius instead of a supplied tolerance | forward bounds, checked against `f128` on grids (`verify` A15); the cost is measured as T5 |
+| **the decided classification** — null is a statement about the computation, never a threshold | the causal layer's cone predicates, the split-complex zero divisor, the form classification | the propagated radius of the computed norm; `verify` A17 pins the behaviour change from both sides, `bench` T7 measures the resolution |
 | **the exact mode** — integers only, no tolerance, 0 is exactly 0 | P2 and P4 for every signature with `p+q+r <= 5`; the P2a rule has additionally been tested at `n = 6` | exact `i64` arithmetic on the determining set, decided rather than sampled; the sparse kernel is cross-checked against the dense one |
 
 ### Not supported
@@ -186,6 +145,7 @@ are reported in full in `results/RESULTS.md`.
 | **T3b** crossover | the cost constant derived from the data is `C = 1888`; the measured crossover sits between `k = 8` and `k = 32`, and the prediction agrees with the measurement in 8 of 8 points. |
 | **T4** derivative | dual numbers give the derivative **exactly** — bit for bit identical to the analytic formula — against `2.9·10⁻⁸` for the best tuned central difference, and about 1.5× faster. |
 | **T5** error radius | the price of carrying a bound on the error: **1.67×–2.10×** on a form evaluation (worst at `n = 1024`), and **nothing** for the contracts that carry no radius, because those return a plain `f64` from the same body as before. Not a speed claim — a price list. |
+| **T7** resolution of a classification | the tolerance could not decide below `\|g\| = 1e-9` and called a vector **9.75 % off the cone** null once it was small. Deciding from the propagated radius moves the boundary to where f64 stops separating (`~1e-16` here) and makes it scale invariant. The honest cost: for an input whose own error is 1e-8 the classification is now undecided — which is what carrying the error in the type is for. |
 | **T6** the exact mode | **4.7×–8.0×** on the P2 decision path by removing three wastes, with the arithmetic unchanged term for term — a test requires identical verdicts *and identical witnesses* against the old dense path on all 55 signatures. The baseline is this project's own previous code, not an outside implementation. |
 
 Where MRS-LAB wins, the win survives every baseline tried: the form inverse

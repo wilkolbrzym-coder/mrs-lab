@@ -243,6 +243,23 @@ pub fn classify(f: form.DiagonalForm, v: []const f64) form.Class {
     return if (g.value * ts > 0) .temporal else .spatial;
 }
 
+/// Is `z` a zero divisor, decided by the propagated radius on
+/// `N(z) = re² − im²` rather than by a tolerance the caller supplies.
+///
+/// The difference from `split_complex.isZeroDivisor(a, tol)` is the point of
+/// 0.1.6: the tolerance version answers "is the norm smaller than 1e-9", which
+/// calls an ordinary element with a small norm a zero divisor. This one answers
+/// "can the computation separate the norm from zero", which is the question
+/// that has an answer.
+///
+/// A non-finite component is NOT a zero divisor: the predicate is about a real
+/// condition, and NaN satisfies nothing.
+pub fn isZeroDivisorDecided(a: Z) bool {
+    const n = Bounded.exact(a.re).square().sub(Bounded.exact(a.im).square());
+    if (!std.math.isFinite(n.value)) return false;
+    return n.couldBeZero();
+}
+
 /// The rapidity of a product of boosts, with a propagated bound.
 ///
 /// This is the additive chart, and it is the one place where the bound stays
